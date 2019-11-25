@@ -1,8 +1,4 @@
-
-
-
-
-
+#!/usr/bin/env python
 # coding: utf-8
 
 # In[1]:
@@ -74,9 +70,10 @@ class BrainNetCNN(torch.nn.Module):
 
 # Loader for GoldMSI-LSD77 dataset
 
-# In[20]:
+# In[18]:
 
 
+# behavdir = "/Users/nicolasfarrugia/Documents/recherche/git/Gold-MSI-LSD77/behav"
 behavdir = "/home/nfarrugi/campus/data_lsd/behav"
 
 from sklearn.model_selection import train_test_split
@@ -138,33 +135,30 @@ class GoldMSI_LSD_Dataset(torch.utils.data.Dataset):
         return sample
 
 
-# In[21]:
+# In[85]:
 
 
 trainset = GoldMSI_LSD_Dataset(mode="train")
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=20, shuffle=True, num_workers=1)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=10, shuffle=True, num_workers=1)
 
 testset = GoldMSI_LSD_Dataset(mode="validation")
-testloader = torch.utils.data.DataLoader(testset, batch_size=20, shuffle=False, num_workers=1)
+testloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=1)
 
 
 # Training
 
-# In[22]:
+# In[ ]:
 
 
 net = BrainNetCNN(trainset.X)
 
 if use_cuda:
-    net = net.cuda(0)
-    net = torch.nn.DataParallel(net, device_ids=[0])
+    net = net.cuda()
+    #net = torch.nn.DataParallel(net, device_ids=[0])
     cudnn.benchmark = True
-        
-        
-momentum = 0.9
-lr = 0.005
-wd = 0.0005 ## Decay for L2 regularization 
-#wd = 0
+
+
+# In[163]:
 
 
 ### Weights initialization for the dense layers using He Uniform initialization
@@ -177,16 +171,46 @@ def init_weights_he(m):
         fan_in = net.dense1.in_features
         he_lim = np.sqrt(6) / fan_in
         m.weight.data.uniform_(-he_lim,he_lim)
-        print(m.weight)
 
-#net.apply(init_weights_he)
+
+#        print(m.weight)
+
+net.apply(init_weights_he)
+
+# In[177]:
+
+
+momentum = 0.9
+lr = 0.00001
+wd = 0.0005  ## Decay for L2 regularization
+# wd = 0
+
+
+# In[178]:
+
+
+preds, y_true, loss_test = test()
+
+mae_1 = mae(preds[:, 0], y_true[:, 0])
+pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
+print("Init Network")
+print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1))
+print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
+
+mae_2 = mae(preds[:, 1], y_true[:, 1])
+pears_2 = pearsonr(preds[:, 1], y_true[:, 1])
+
+print("Test Set : MAE for Training : %0.2f %%" % (100 * mae_2))
+print("Test Set : pearson R for Training : %0.2f, p = %0.4f" % (pears_2[0], pears_2[1]))
+
+# In[179]:
 
 
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.SGD(net.parameters(),lr=lr,momentum=momentum,nesterov=True,weight_decay=wd)
 
 
-# In[23]:
+# In[180]:
 
 
 def train(epoch):
@@ -213,7 +237,6 @@ def train(epoch):
         
         # print statistics
         running_loss += loss.data[0]
-
         
         #if batch_idx % 10 == 9:    # print every 10 mini-batches
         #    print('Training loss: %.6f' % ( running_loss / 10))
@@ -240,22 +263,22 @@ def test():
         
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
-        with torch.no_grad():
+            #with torch.no_grad():
             inputs, targets = Variable(inputs), Variable(targets)
 
             outputs = net(inputs)
             loss = criterion(outputs, targets)
 
             test_loss += loss.data[0]
-            
-            preds.append(outputs.numpy())
-            ytrue.append(targets.numpy())
+
+            preds.append(outputs.data.cpu().numpy())
+            ytrue.append(targets.data.cpu().numpy())
         
     
     
         
         # print statistics
-        running_loss += loss.data[0].numpy()
+        running_loss += loss.data[0]
         #if batch_idx % 5 == 4:    # print every 5 mini-batches
         #    print('Test loss: %.6f' % ( running_loss / 5))
         #    running_loss = 0.0
@@ -274,13 +297,13 @@ def test():
 
 # Run Epochs of training and testing 
 
-# In[ ]:
+# In[181]:
 
 
 from sklearn.metrics import mean_absolute_error as mae
 from scipy.stats import pearsonr
 
-nbepochs = 200
+nbepochs = 100
 allloss_train = []
 allloss_test= []
 
@@ -306,26 +329,42 @@ for epoch in range(nbepochs):
     pears_1 = pearsonr(preds[:,0],y_true[:,0])
     
     allmae_test1.append(mae_1)
-    allpears_test1.append(pears_1)
+    allpears_test1.append(pears_1[0])
     
     print("Test Set : MAE for Engagement : %0.2f %%" % (100*mae_1))
-    print("Test Set : pearson R for Engagement : %0.2f, p = %0.2f" % (pears_1[0],pears_1[1]))
+    print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
     mae_2 = mae(preds[:,1],y_true[:,1])
     pears_2 = pearsonr(preds[:,1],y_true[:,1])
     
     allmae_test2.append(mae_2)
-    allpears_test2.append(pears_2)
+    allpears_test2.append(pears_2[0])
     
     print("Test Set : MAE for Training : %0.2f %%" % (100*mae_2))
-    print("Test Set : pearson R for Training : %0.2f, p = %0.2f" % (pears_2[0],pears_2[1]))
-    
+    print("Test Set : pearson R for Training : %0.2f, p = %0.4f" % (pears_2[0], pears_2[1]))
+
+# In[182]:
 
 
-# In[ ]
+from matplotlib import pyplot as plt
+
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+plt.plot(allloss_train)
+plt.plot(allloss_test)
+
+# In[183]:
 
 
-# In[ ]:
+plt.plot(allmae_test1)
+plt.plot(allmae_test2)
+
+# In[184]:
+
+
+plt.plot(allpears_test1)
+plt.plot(allpears_test2)
+
 
 # Run this to save the model 
 
@@ -344,3 +383,37 @@ torch.save(net,filename_pt)
 np.savez_compressed(filename_stats,test_losses = allloss_train,train_losses = allloss_train,mae_training = allmae_test2,
                    mae_eng = allmae_test1,pears_eng = allpears_test1,pears_train = allpears_test2)
 
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
+
+
+# In[ ]:
