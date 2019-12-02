@@ -173,7 +173,7 @@ def init_weights_he(m):
         m.weight.data.uniform_(-he_lim,he_lim)
 
 
-#        print(m.weight)
+#        print(testmat.weight)
 
 net.apply(init_weights_he)
 
@@ -373,7 +373,7 @@ plt.plot(allpears_test2)
 
 import datetime
 
-mystring = datetime.datetime.now().strftime("%m-%d-%H-%M")
+mystring = datetime.datetime.now().strftime("%testmat-%d-%H-%M")
 
 filename_pt = mystring + "_model.pt"
 filename_stats = mystring + "_stats.npz"

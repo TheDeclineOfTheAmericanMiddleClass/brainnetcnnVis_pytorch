@@ -42,11 +42,11 @@ for i, x in enumerate(testmat):
 # axs.set_title(f'Histogram of lower triangle entries for subject {testmat[0]} in {dataDir}')
 
 ###### Transforming z-scored data in pearson correlations ######
-rdata = np.empty_like(data)
+restricted = np.empty_like(data)
 npd_count = 0
 for i, x in enumerate(data):
-    rdata[i] = z2r(x)
-    if is_pos_def(rdata[i]) == False:
+    restricted[i] = z2r(x)
+    if is_pos_def(restricted[i]) == False:
         print(f'Matrix {i} is not positive definite!')
         npd_count += 1
 

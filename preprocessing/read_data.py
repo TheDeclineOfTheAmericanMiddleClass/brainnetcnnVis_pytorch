@@ -13,8 +13,9 @@ import numpy as np
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # setting data directory
-dataDir = '3T_HCP1200_MSMAll_d300_ts2_RIDGE'  # ICA FIX 300 from ?HCP/LEA
-# dataDir = 'POWER_264_FIXEXTENDED_RIDGEP'
+# TODO: figure out whether ICA300 dataset created by Lea or HCP
+dataDir = 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE'  # ICA FIX 300 from ?HCP/LEA
+# dataDir = 'data/POWER_264_FIXEXTENDED_RIDGEP'
 
 # Names of only the files in the folder
 filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
@@ -38,8 +39,8 @@ for i, filename in enumerate(filenames):
 data = np.array(data)
 
 # Demographic data
-behavioral = pd.read_csv('hcp/behavioral.csv')
-restricted = pd.read_csv('hcp/restricted.csv')
+behavioral = pd.read_csv('data/hcp/behavioral.csv')
+restricted = pd.read_csv('data/hcp/restricted.csv')
 
 # Specifying indices of overlapping subjects in 1206 and 1003 subject datasets
 subInd = np.where(np.isin(restricted["Subject"], subnums))[0]

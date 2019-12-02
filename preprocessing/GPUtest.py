@@ -1,4 +1,4 @@
-## Script to ensure our GPU runs and a walkthrough fo the pytorch 60 minute tutorial found here:
+## Script to ensure our GPU runs and a walkthrough from the pytorch 60 minute tutorial found here:
 # https://pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html
 
 
@@ -33,8 +33,8 @@ import torch.optim as optim
 # b = torch.from_numpy(a)
 # print(b)
 #
-# if torch.cuda.is_available():
-#     device = torch.device("cuda")          # a CUDA device object
+if torch.cuda.is_available():
+    device = torch.device("cuda")          # a CUDA device object
 #     y = torch.ones_like(x, device=device)  # directly create a tensor on GPU
 #     x = x.to(device)                       # or just use strings ``.to("cuda")``
 #     z = x + y
