@@ -52,7 +52,7 @@ def train(epoch):  # training in mini batches
 
         # print statistics
         # running_loss += loss.data[0]
-        running_loss += loss.data.item()
+        running_loss += loss.data.item()  # only predicting 1 feature
 
         if batch_idx % 10 == 8:    # print every 10 mini-batches
            print('Training loss: %.6f' % (running_loss / 10))
@@ -77,7 +77,7 @@ def test():
     preds = []
     ytrue = []
 
-    for batch_idx, (inputs, targets) in enumerate(valloader): # changing this from testloader
+    for batch_idx, (inputs, targets) in enumerate(testloader):
 
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)
@@ -88,7 +88,7 @@ def test():
             loss = criterion(outputs, targets)
 
             # test_loss += loss.data[0]
-            test_loss += loss.data.item()
+            test_loss += loss.data.item()  # only predicting 1 feature
 
             preds.append(outputs.data.cpu().numpy())
             ytrue.append(targets.data.cpu().numpy())
@@ -98,7 +98,7 @@ def test():
         running_loss += loss.data.item()
         # if batch_idx % 5 == 4:    # print every 5 mini-batches
         if batch_idx == len(valloader):  # just print for final batch
-            print('Valid loss: %.6f' % (running_loss / 5))  # TODO: ensure validation loss, not test is being printed
+            print('Test loss: %.6f' % (running_loss / 5))
             running_loss = 0.0
 
         # _, predicted = torch.max(outputs.data, 1)
@@ -122,6 +122,7 @@ def init_weights_he(m):
 #        print(m.weight)
 
 # Setting hyper parameters
+# TODO: Ensure hyperparameters are the same in published papers with good performance
 momentum = 0.9
 lr = 0.00001
 wd = 0.0005  ## Decay for L2 regularization

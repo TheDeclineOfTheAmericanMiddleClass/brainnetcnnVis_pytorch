@@ -38,7 +38,9 @@ class BrainNetCNN(torch.nn.Module):
 
     def forward(self, x):
         out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
+        out = F.dropout(F.leaky_relu(self.e2econv1(out), negative_slope=0.33), p=0.5)
         out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
+        out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=0.5)
         out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
         out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
         out = out.view(out.size(0), -1)

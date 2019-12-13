@@ -23,7 +23,7 @@ print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pe
 
 # Run Epochs of training and testing
 
-nbepochs = 60
+nbepochs = 300
 allloss_train = []
 allloss_test = []
 
@@ -38,7 +38,7 @@ for epoch in range(nbepochs):
 
     allloss_train.append(loss_train)
 
-    preds, y_true, loss_val = test()  # actually calculates loss on validation set
+    preds, y_true, loss_val = test()
 
     allloss_test.append(loss_val)
 
