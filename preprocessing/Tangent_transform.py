@@ -33,7 +33,7 @@ def tangent_transform(pdmats, ref='euclidean'):
     for i, x in enumerate(pdmats):
         tmats = np.dot(wsStar, x).dot(wsStar)
         tmats = tmats.reshape(-1, len(pdmats[1]), len(pdmats[1]))
-        tmats[i] = logm(tmats)
+        tmats[i] = logm(tmats[i])
 
     return tmats
 
