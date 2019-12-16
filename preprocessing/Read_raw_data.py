@@ -3,28 +3,48 @@ import h5py
 from os import listdir
 from os.path import isfile, join
 import pandas as pd
-import torch
+import re
 import numpy as np
+import scipy
+import torch
+
 
 def read_raw_data(dataDir):
 
-    # Names of only the files in the folder
-    filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
+    data = []  # Allocating list for connectivity matrices
+    subnums = []  # subject IDs
+
+    # Names of only the connectivity matrix files in the folder
+
+    eb = 'data/edge_betweenness'
+    if dataDir == eb:
+        filenames = []
+
+        for i, subdir in enumerate(listdir(f'{eb}')):
+            subfold = listdir(f'{eb}/{subdir}')  # subfolders
+            filtnames = list(filter(re.compile('HCP').match, subfold))
+            filenames.extend(filtnames)
+            # Reading in data from all 1003 subjects
+            for _, filename in enumerate(filtnames):
+                # print(filename)
+                n1 = scipy.io.loadmat(f'{eb}/{subdir}/{filename}')['mat']
+                data.append(n1)
+
+        s = 13  # start index of subject ID
+
+    else:
+        filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
+        s = 0  # start index of subject ID in filename
+
+        # Reading in data from all 1003 subjects
+        for i, filename in enumerate(filenames):
+            hf = h5py.File(f'{dataDir}/{filename}', 'r')
+            n1 = np.array(hf["CorrMatrix"][:])
+            data.append(n1)
 
     # Associated subject numbers
-    subnums = []
     for i, filename in enumerate(filenames):
-        subnums.append(int(filename[:-4]))
-
-    # Allocating list for connectivity matrices
-    data = []
-
-    # Reading in data from all 1003 subjects
-    for i, filename in enumerate(filenames):
-        hf = h5py.File(f'{dataDir}/{filename}', 'r')
-        # n1 = torch.tensor(hf["CorrMatrix"][:], device=device) # maybe just push to tensor after all tangent space transforms complete
-        n1 = np.array(hf["CorrMatrix"][:])
-        data.append(n1)
+        subnums.append(int(filename[s:-4]))
 
     # Data as a numpy array
     data = np.array(data)

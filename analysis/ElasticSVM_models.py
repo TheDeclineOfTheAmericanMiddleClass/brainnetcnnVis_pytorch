@@ -1,18 +1,16 @@
+from analysis.Load_model_data import *
+# from preprocessing.Main_preproc import *
+
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_error as mae
-from preprocessing.Main_preproc import *
-from analysis.Load_model_data import *
 
 # reshape subject's data into vector
 svmdata = []
 for i, x in enumerate(data):
-    svmdata.append(np.array(x[np.triu_indices(300, k=1)]))
+    svmdata.append(np.array(x[np.triu_indices(len(data[0]), k=1)]))
 
-ages = np.array(AiY)
-
-# concatenate train and validation sets for shallow networks
-shallowX = [svmdata[j] for j in list(train_ind) + list(val_ind)]  # training cov matrices
-shallowY = [ages[j] for j in list(train_ind) + list(val_ind)]  # training ages
+shallowX = [svmdata[j] for j in list(train_ind)]  # training cov matrices
+shallowY = [ages[j] for j in list(train_ind)]  # training ages
 
 y_testTrue = [ages[j] for j in list(test_ind)]  # test ages
 
@@ -35,7 +33,7 @@ elastic_mae = mae(y_testTrue, y_elasticPred)
 ######## training SVM ###############
 from sklearn import svm
 
-clf = svm.SVC(gamma='auto')
+clf = svm.SVC(gamma='scale', tol=.5)
 clf.fit(shallowX, shallowY)
 
 y_svmPred = clf.predict([svmdata[j] for j in list(test_ind)])

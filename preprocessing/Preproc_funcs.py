@@ -69,7 +69,7 @@ def isPD(B):
 #     return np.all(np.linalg.eigvals(x) > 0)
 
 # Transforming into pearson correlations
-def R_transform(datamat):
+def R_transform(data):
     rdata = np.empty_like(data)
     npd_count = 0
     for i, x in enumerate(data):
@@ -90,4 +90,24 @@ def PD_transform(datamats):
     print(f'PD_transform returned {npd_count} non-positive definite matrices')
     return pddata
 
+# code for whitening data.
+def whiten(X, fudge=1E-18):
+    """
+    :param X: covariance matrix
+    :param fudge: insurance that eigenvectors with small eigvenvalues aren't overamplified
+    :return: whitnend matrix X_white, and whitening matrix W
+    """
+    # eigenvalue decomposition of the covariance matrix
+    d, V = np.linalg.eigh(X)
 
+    # a fudge factor can be used so that eigenvectors associated with
+    # small eigenvalues do not get overamplified.
+    D = np.diag(1. / np.sqrt(d+fudge))
+
+    # whitening matrix
+    W = np.dot(np.dot(V, D), V.T)
+
+    # multiply by the whitening matrix
+    X_white = np.dot(X, W)
+
+    return X_white, W

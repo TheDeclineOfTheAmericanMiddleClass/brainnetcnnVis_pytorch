@@ -4,6 +4,18 @@ from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_error as mae
 from analysis.Load_model_data import *
 
+# # trying new implementation for fitting model
+# from torchsample.modules import ModuleTrainer
+# net = BrainNetCNN(trainset.X)
+# trainer = ModuleTrainer(net)
+# trainer.compile(loss='nll_loss', optimizer='adadelta')
+# trainer.fit(data[train_ind], ages[train_ind],
+#             val_data=(data[val_ind], ages[val_ind]),
+#             num_epoch=50,
+#             batch_size=100,
+#             verbose=1)
+
+
 # initializing weights
 net.apply(init_weights_he)
 
@@ -15,7 +27,7 @@ print("Init Network")
 print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1))
 print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
-# TODO: figure out why 2 values were being predicted
+# # when choose to detect sex and age at the same time
 # mae_2 = mae(preds[:, 1], y_true[:, 1])
 # pears_2 = pearsonr(preds[:, 1], y_true[:, 1])
 # print("Test Set : MAE for Training : %0.2f %%" % (100 * mae_2))
@@ -29,6 +41,7 @@ allloss_test = []
 
 allmae_test1 = []
 allpears_test1 = []
+allpval_test1 = []
 
 # allmae_test2 = []
 # allpears_test2 = []
@@ -48,9 +61,12 @@ for epoch in range(nbepochs):
 
     allmae_test1.append(mae_1)
     allpears_test1.append(pears_1[0])
+    allpval_test1.append(pears_1[1])
 
-    print("Validation Set : MAE for Engagement : %0.2f %%" % (100 * mae_1))
-    print("Validation Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
+    # print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1)) # why was this multiplied by 100 and
+    # expressed as percentage?
+    print("Test Set : MAE for Engagement : %0.2f %%" % mae_1)
+    print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
     # TODO: figure out why 2 values were being predicted
     # mae_2 = mae(preds[:, 1], y_true[:, 1])
