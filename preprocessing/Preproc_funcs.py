@@ -87,6 +87,8 @@ def PD_transform(datamats):
         if not isPD(pddata[i]):
             print(f'Matrix {i} is not positive definite!')
             npd_count += 1
+        if i % 199 == 0:
+            print(f'Attempting to make {i}/{len(pddata)} matrices positive definite...')
     print(f'PD_transform returned {npd_count} non-positive definite matrices')
     return pddata
 

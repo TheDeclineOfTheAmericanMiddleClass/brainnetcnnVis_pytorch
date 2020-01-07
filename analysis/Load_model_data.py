@@ -19,4 +19,3 @@ test_ind = np.where(np.isin(subnums, final_test_list))[0]
 val_ind = np.where(np.isin(subnums, final_val_list))[0]
 
 ages = np.array(AiY)
-# data = torch.tensor(data)

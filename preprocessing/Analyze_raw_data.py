@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt, mpld3
 from preprocessing.Preproc_funcs import *
 
 def test_raw_data(data, nMat=1):
@@ -47,7 +47,6 @@ def plot_raw_data(data, dataDir, nMat=1):
             axs[c+1].set_title(f'Connectivity Matrix for subject {testmat[i]}')
             fig.colorbar(im, ax=axs[c+1])
             im.set_clim(lt.min(), lt.max())
-
             c += 2
 
         else:  # case: nMat = 1
@@ -65,3 +64,6 @@ def plot_raw_data(data, dataDir, nMat=1):
 
 
     fig.show()
+
+    # exporting to interactive html file
+    mpld3.save_html(fig, 'figures/edge_betwenness_matrices_1.7.19')

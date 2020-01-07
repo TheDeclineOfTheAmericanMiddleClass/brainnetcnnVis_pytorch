@@ -1,19 +1,9 @@
 # importing our training, testing functions and weight initializations
-from analysis.Init_model import *
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_error as mae
-from analysis.Load_model_data import *
-
-# # trying new implementation for fitting model
-# from torchsample.modules import ModuleTrainer
-# net = BrainNetCNN(trainset.X)
-# trainer = ModuleTrainer(net)
-# trainer.compile(loss='nll_loss', optimizer='adadelta')
-# trainer.fit(data[train_ind], ages[train_ind],
-#             val_data=(data[val_ind], ages[val_ind]),
-#             num_epoch=50,
-#             batch_size=100,
-#             verbose=1)
+# from analysis.Load_model_data import *
+# from analysis.Define_model import *
+from analysis.Init_model import *
 
 
 # initializing weights
@@ -46,6 +36,9 @@ allpval_test1 = []
 # allmae_test2 = []
 # allpears_test2 = []
 
+# setting early stopping interval between epochs to check for changes in mae
+ep_int = 5
+
 for epoch in range(nbepochs):
     loss_train = train(epoch)
 
@@ -65,10 +58,16 @@ for epoch in range(nbepochs):
 
     # print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1)) # why was this multiplied by 100 and
     # expressed as percentage?
-    print("Test Set : MAE for Engagement : %0.2f %%" % mae_1)
+    print("\nTest Set : MAE for Engagement : %0.2f %%" % mae_1)
     print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
-    # TODO: figure out why 2 values were being predicted
+    # TODO: implement early stopping using relative tolerance tof test set
+    # Checking every ep_int epochs. If there is no improvement on avg test error, stop training
+    if (epoch > 0) & (epoch % ep_int == 0):
+        if (np.mean(allmae_test1[epoch - ep_int:-1]) <= allmae_test1[epoch]):
+            break
+
+    # # PREDICTION OF 2nd VALUE
     # mae_2 = mae(preds[:, 1], y_true[:, 1])
     # pears_2 = pearsonr(preds[:, 1], y_true[:, 1])
     #
@@ -77,3 +76,13 @@ for epoch in range(nbepochs):
     #
     # print("Test Set : MAE for Training : %0.2f %%" % (100 * mae_2))
     # print("Test Set : pearson R for Training : %0.2f, p = %0.4f" % (pears_2[0], pears_2[1]))
+
+# take only values of MAE in epochs before the one that triggered early stopping
+stoploss_train = allloss_train[:-ep_int]
+stoploss_test = allloss_test[:-ep_int]
+stopmae_test1 = allmae_test1[:-ep_int]
+stoppval_test1 = allpval_test1[:-ep_int]
+stoppears_test1 = allpears_test1[:-ep_int]
+
+stopmae_1 = stopmae_test1[-1]
+stoppears_1 = (stoppears_test1[-1], stoppval_test1[-1])

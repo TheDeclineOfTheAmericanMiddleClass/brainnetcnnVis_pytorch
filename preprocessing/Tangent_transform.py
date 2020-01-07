@@ -8,6 +8,7 @@ vlogm = np.vectorize(logm)  # vectorized logm
 # defining DIY tangent space transformation
 def tangent_transform(pdmats, ref='euclidean'):
     """
+    Takes array of positive definite matrices and returns their projection into tangent space.
     Implementation from dadi et al., 2019. Source: https://hal.inria.fr/hal-01824205v3
     Calculation of reference means from Pervaiz et al., 2019. https://www.biorxiv.org/content/10.1101/741595v2.full.pdf
     :param data: covariance matrices (samples x rows x columns)
@@ -31,9 +32,11 @@ def tangent_transform(pdmats, ref='euclidean'):
 
     tmats = np.zeros_like(pdmats)
     for i, x in enumerate(pdmats):
-        tmats = np.dot(wsStar, x).dot(wsStar)
-        tmats = tmats.reshape(-1, len(pdmats[1]), len(pdmats[1]))
-        tmats[i] = logm(tmats[i])
+        m = np.dot(wsStar, x).dot(wsStar)
+        m = m.reshape(len(pdmats[1]), len(pdmats[1]))
+        if i % 199 == 0:
+            print(f'Projecting {i}/{len(tmats)} matrices into tangent space...')
+        tmats[i] = logm(m)
 
     return tmats
 

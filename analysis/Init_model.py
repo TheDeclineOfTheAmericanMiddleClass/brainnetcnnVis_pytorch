@@ -1,11 +1,11 @@
 import torch
-from torch.autograd import Variable
-import torch.utils.data.dataset
-from analysis.Define_model import BrainNetCNN, HCPDataset
 import torch.backends.cudnn as cudnn
 import numpy as np
+import torch.utils.data.dataset
+# from torch.autograd import Variable
+from analysis.Define_model import BrainNetCNN, HCPDataset
+from preprocessing.Main_preproc import use_cuda
 
-from preprocessing.Main_preproc import *
 
 # TODO: Figure out if it should be shuffled or not
 # Defining train, test, validation sets

@@ -30,7 +30,7 @@ def read_raw_data(dataDir):
                 n1 = scipy.io.loadmat(f'{eb}/{subdir}/{filename}')['mat']
                 data.append(n1)
 
-        s = 13  # start index of subject ID
+        s = 13  # start index of subject ID in filename
 
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
@@ -59,5 +59,7 @@ def read_raw_data(dataDir):
     # Only using data from 1003
     restricted = restricted.reindex(subInd)
     behavioral = behavioral.reindex(subInd)
+
+    print('Raw data processed...')
 
     return data, restricted, behavioral, subnums

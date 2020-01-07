@@ -3,7 +3,7 @@ import torch.nn
 import torch.utils.data.dataset
 
 from analysis.Load_model_data import *
-from preprocessing.Main_preproc import *
+from preprocessing.Main_preproc import data
 
 # Definite E2E
 class E2EBlock(torch.nn.Module):
