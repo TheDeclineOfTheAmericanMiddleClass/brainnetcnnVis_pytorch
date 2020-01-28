@@ -2,10 +2,8 @@ import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
 import torch.utils.data.dataset
-# from torch.autograd import Variable
 from analysis.Define_model import BrainNetCNN, HCPDataset
 from preprocessing.Main_preproc import use_cuda
-
 
 # TODO: Figure out if it should be shuffled or not
 # Defining train, test, validation sets
@@ -29,6 +27,7 @@ if use_cuda:
 
 # check if model parameters are on GPU or no
 next(net.parameters()).is_cuda
+
 
 def train(epoch):  # training in mini batches
     net.train()
@@ -54,9 +53,9 @@ def train(epoch):  # training in mini batches
         # running_loss += loss.data[0]
         running_loss += loss.data.item()  # only predicting 1 feature
 
-        if batch_idx % 10 == 8:    # print every 10 mini-batches
-           print('Training loss: %.6f' % (running_loss / 10))
-           running_loss = 0.0
+        if batch_idx % 10 == 8:  # print every 10 mini-batches
+            print('Training loss: %.6f' % (running_loss / 10))
+            running_loss = 0.0
         _, predicted = torch.max(outputs.data, 1)
 
         # total += targets.size(0)
@@ -66,8 +65,8 @@ def train(epoch):  # training in mini batches
     return running_loss / batch_idx
 
 
-
 def test():
+    global loss
     net.eval()
     test_loss = 0
     correct = 0
@@ -109,6 +108,7 @@ def test():
     # Save checkpoint.
     # acc = 100.*correct/total
 
+
 ### Weights initialization for the dense layers using He Uniform initialization
 ### He et al., http://arxiv.org/abs/1502.01852
 
@@ -119,6 +119,8 @@ def init_weights_he(m):
         fan_in = net.dense1.in_features
         he_lim = np.sqrt(6) / fan_in
         m.weight.data.uniform_(-he_lim, he_lim)
+
+
 #        print(m.weight)
 
 # Setting hyper parameters

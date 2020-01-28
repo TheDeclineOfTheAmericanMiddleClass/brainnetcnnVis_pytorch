@@ -71,7 +71,7 @@ def plot_model_results(allloss_train, allloss_test, allmae_test1, allpears_test1
 
 
 plot_model_results(stoploss_train, stoploss_test, stopmae_test1, stoppears_test1,
-                   arc='Usama', input_data='ICA 300', transformations='positive-definite, then tangent', es=True)
+                   arc='Usama', input_data='face-task 268', transformations='deconfounded, then tangent', es=True)
 
 # # PRINTING RESULTS TO CONSOLE
 # colhs = ['BrainNetCNN,', 'ElasticNet', 'SVM']
@@ -85,15 +85,3 @@ plot_model_results(stoploss_train, stoploss_test, stopmae_test1, stoppears_test1
 #         print(f'{x} {y}: {tabel[j, i]}')
 #     print('')
 #
-
-# PRINTING ONLY THE SHALLOW RESULTS
-# s_colhs = ['ElasticNet', 'SVM']
-# s_rowhs = ['pearson r', 'mean absolute error']
-# s_tabel = np.array([[f'{elastic_r:.2}, p-value: {elastic_p:.2}',
-#                    f'{svm_r:.2}, p-value: {svm_p:.2}'],
-#                    [f'{elastic_mae:.2}', f'{svm_mae:.2}']])
-#
-# for i, x in enumerate(s_colhs):
-#     for j, y in enumerate(s_rowhs):
-#         print(f'{x} {y}: {s_tabel[j, i]}')
-#     print('')

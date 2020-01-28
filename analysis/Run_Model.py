@@ -5,6 +5,8 @@ from sklearn.metrics import mean_absolute_error as mae
 # from analysis.Define_model import *
 from analysis.Init_model import *
 
+# setting early stopping interval between epochs to check for changes in mae
+ep_int = 8
 
 # initializing weights
 net.apply(init_weights_he)
@@ -14,7 +16,8 @@ preds, y_true, loss_val = test()
 mae_1 = mae(preds[:, 0], y_true[:, 0])
 pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
 print("Init Network")
-print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1))
+# print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1))
+print(f"Test Set : MAE for Engagement : {100 * mae_1:.2}")  # TODO: INCLUDE % IF ERRORS OCCUR
 print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
 # # when choose to detect sex and age at the same time
@@ -36,8 +39,6 @@ allpval_test1 = []
 # allmae_test2 = []
 # allpears_test2 = []
 
-# setting early stopping interval between epochs to check for changes in mae
-ep_int = 5
 
 for epoch in range(nbepochs):
     loss_train = train(epoch)

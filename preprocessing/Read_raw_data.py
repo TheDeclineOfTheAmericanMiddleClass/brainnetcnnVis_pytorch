@@ -2,15 +2,12 @@ from __future__ import print_function
 import h5py
 from os import listdir
 from os.path import isfile, join
-import pandas as pd
 import re
 import numpy as np
 import scipy
-import torch
 
 
 def read_raw_data(dataDir):
-
     data = []  # Allocating list for connectivity matrices
     subnums = []  # subject IDs
 
@@ -18,7 +15,7 @@ def read_raw_data(dataDir):
 
     eb = 'data/edge_betweenness'
     if dataDir == eb:
-        filenames = []
+        filenames = []  # TODO: ensure these filenames get sorted
 
         for i, subdir in enumerate(listdir(f'{eb}')):
             subfold = listdir(f'{eb}/{subdir}')  # subfolders
@@ -34,13 +31,28 @@ def read_raw_data(dataDir):
 
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
+        filenames.sort()
         s = 0  # start index of subject ID in filename
 
-        # Reading in data from all 1003 subjects
         for i, filename in enumerate(filenames):
-            hf = h5py.File(f'{dataDir}/{filename}', 'r')
-            n1 = np.array(hf["CorrMatrix"][:])
-            data.append(n1)
+            if filenames[0].endswith('.npy'):
+                data = list(np.load(f'{dataDir}/{filename}'))
+
+            elif filenames[0].endswith('.txt'):  # for .txt file
+                tf = np.loadtxt(f'{dataDir}/{filename}')
+                data.append(tf)
+
+            else:  # for .h5py files
+                hf = h5py.File(f'{dataDir}/{filename}', 'r')
+                n1 = np.array(hf["CorrMatrix"][:])
+                data.append(n1)
+
+        # # for netmats1.txt processing...
+        # # changing filenames for 1003 subject numbers to readable
+        # if data.shape[0] == 1003:
+        #     dataDir = 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE'
+        #     filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
+
 
     # Associated subject numbers
     for i, filename in enumerate(filenames):
@@ -49,17 +61,6 @@ def read_raw_data(dataDir):
     # Data as a numpy array
     data = np.array(data)
 
-    # Demographic data
-    behavioral = pd.read_csv('data/hcp/behavioral.csv')
-    restricted = pd.read_csv('data/hcp/restricted.csv')
+    print('Raw data processed...\n')
 
-    # Specifying indices of overlapping subjects in 1206 and 1003 subject datasets
-    subInd = np.where(np.isin(restricted["Subject"], subnums))[0]
-
-    # Only using data from 1003
-    restricted = restricted.reindex(subInd)
-    behavioral = behavioral.reindex(subInd)
-
-    print('Raw data processed...')
-
-    return data, restricted, behavioral, subnums
+    return data, subnums
