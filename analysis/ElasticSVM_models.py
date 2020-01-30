@@ -1,8 +1,7 @@
-from analysis.Load_model_data import *
-# from preprocessing.Main_preproc import *
-
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_error as mae
+
+from analysis.Load_model_data import *
 
 # # reshape subject's data into vector
 # svmdata = []
@@ -12,6 +11,19 @@ from sklearn.metrics import mean_absolute_error as mae
 # shallowX_train = [svmdata[j] for j in list(train_ind)]  # cov matrices for training
 # shallowY_train = [ages[j] for j in list(train_ind)]  # training ages
 # shallowY_test = [ages[j] for j in list(test_ind)]  # test ages
+
+# SETTING UP DATA TO BE TRAINED ON
+X = tdata
+Y = ages
+
+Xtrain_corr = X[tr_i]
+Y_train = Y[tr_i]  # Y_train
+
+Xtest_corr = X[te_i]
+Y_test = Y[te_i]  # Y_test
+
+Xval_corr = X[v_i]
+Y_val = Y[v_i]
 
 
 # for deconfounded data...

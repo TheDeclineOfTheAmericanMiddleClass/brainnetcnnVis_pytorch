@@ -1,6 +1,6 @@
-from numpy import linalg as la
-import numpy as np
 import numpy
+import numpy as np
+from numpy import linalg as la
 
 
 # torch tensor to numpy array
@@ -111,7 +111,7 @@ def PD_transform(datamats):
             npd_count += 1
         if i % 199 == 0:
             print(f'Attempting to make {i}/{len(pddata)} matrices positive definite...')
-    print(f'PD_transform returned {npd_count} non-positive definite matrices\n')
+    print(f'PD_transform successfully transformed {len(datamats) - npd_count} matrices\n')
     return pddata
 
 
