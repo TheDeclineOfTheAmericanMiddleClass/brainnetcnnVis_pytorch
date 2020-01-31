@@ -64,20 +64,20 @@ class HCPDataset(torch.utils.data.Dataset):
         # X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
 
         if self.mode == "train":
-            x = X_corr[tr_i]
-            y = Y_corr[tr_i]  # Y_train
+            x = X[train_ind]
+            y = Y[train_ind]  # Y_train
 
         elif self.mode == "test":
-            x = X_corr[te_i]
-            y = Y_corr[te_i]  # Y_test
+            x = X[test_ind]
+            y = Y[test_ind]  # Y_test
 
         elif mode == "valid":
-            x = X_corr[v_i]
-            y = Y_corr[v_i]
+            x = X[val_ind]
+            y = Y[val_ind]
 
         else:
-            x = X_corr
-            y = Y_corr
+            x = X
+            y = Y
 
         self.X = torch.FloatTensor(np.expand_dims(x, 1).astype(np.float32))
         # self.X = torch.FloatTensor(x.astype(np.float32))
