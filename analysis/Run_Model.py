@@ -1,4 +1,4 @@
-# importing our training, testing functions and weight initializations
+import numpy as np
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_error as mae
 
@@ -7,18 +7,27 @@ from sklearn.metrics import mean_absolute_error as mae
 from analysis.Init_model import *
 
 # setting early stopping interval between epochs to check for changes in mae
-ep_int = 8
+ep_int = 15
 
 # initializing weights
-net.apply(init_weights_he)
+net.apply(init_weights_he)  # TODO: figure out  if this is causing prediction NaNs
 
 preds, y_true, loss_val = test()
 
-mae_1 = mae(preds[:, 0], y_true[:, 0])
-pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
+# prediciton of all variables
+mae_all = mae(preds, y_true)
+pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(ffi_labels))])
 print("Init Network")
-print(f"Test Set : MAE for Engagement : {100 * mae_1:.2}")
-print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
+print(f"Test Set : MAE for Engagement : {100 * mae_all:.2}")
+for i in range(len(ffi_labels)):
+    print(f"Test Set : pearson R for factor {ffi_labels[i]} : {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
+
+# # prediction of 1 variable
+# mae_1 = mae(preds[:, 0], y_true[:, 0])
+# pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
+# print("Init Network")
+# print(f"Test Set : MAE for Engagement : {100 * mae_1:.2}")
+# print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
 # # prediction of 2 variables
 # mae_2 = mae(preds[:, 1], y_true[:, 1])
@@ -31,9 +40,9 @@ print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pe
 ######################################
 
 nbepochs = 300
-allloss_train = []
-allloss_test = []
 
+allloss_train = []  # TODO: turn into datafram to accommadate 5 factors of personality
+allloss_test = []
 allmae_test1 = []
 allpears_test1 = []
 allpval_test1 = []
@@ -51,18 +60,18 @@ for epoch in range(nbepochs):
 
     allloss_test.append(loss_val)
 
-    print("Epoch %d" % epoch)
-    mae_1 = mae(preds[:, 0], y_true[:, 0])  # TODO: change to reflect summed MAE for all 5 personality dimensions
-    pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
+    print("\nEpoch %d" % epoch)
+    mae_all = mae(preds, y_true)
+    pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(ffi_labels))])
 
-    allmae_test1.append(mae_1)
-    allpears_test1.append(pears_1[0])
-    allpval_test1.append(pears_1[1])
+    allmae_test1.append(mae_all)
+    allpears_test1.append(pears_all[0])
+    allpval_test1.append(pears_all[1])
 
-    # print("Test Set : MAE for Engagement : %0.2f %%" % (100 * mae_1)) # why was this multiplied by 100 and
-    # expressed as percentage?
-    print("\nTest Set : MAE for Engagement : %0.2f %%" % mae_1)
-    print("Test Set : pearson R for Engagement : %0.2f, p = %0.4f" % (pears_1[0], pears_1[1]))
+    print("Init Network")
+    print(f"Test Set : MAE for Engagement : {100 * mae_all:.2}")
+    for i in range(len(ffi_labels)):
+        print(f"Test Set : pearson R for factor {ffi_labels[i]} : {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
 
     # Checking every ep_int epochs. If there is no improvement on avg test error, stop training
     if (epoch > 0) & (epoch % ep_int == 0):

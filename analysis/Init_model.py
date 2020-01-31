@@ -1,7 +1,8 @@
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import numpy as np
 import torch.utils.data.dataset
+
 from analysis.Define_model import BrainNetCNN, HCPDataset
 from preprocessing.Main_preproc import use_cuda
 
@@ -39,7 +40,7 @@ def train(epoch):  # training in mini batches
     for batch_idx, (inputs, targets) in enumerate(trainloader):
 
         if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)
+            inputs, targets = inputs.cuda(), targets.cuda()  # .unsqueeze(1)
 
         optimizer.zero_grad()
         # inputs, targets = Variable(inputs), Variable(targets)  # variable deprecated in Pytorch 0.4.0
@@ -48,6 +49,7 @@ def train(epoch):  # training in mini batches
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+
 
         # print statistics
         # running_loss += loss.data[0]
@@ -79,7 +81,7 @@ def test():
     for batch_idx, (inputs, targets) in enumerate(testloader):
 
         if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)
+            inputs, targets = inputs.cuda(), targets.cuda()  #.unsqueeze(1)
             # with torch.no_grad():
             # inputs, targets = Variable(inputs), Variable(targets)
 

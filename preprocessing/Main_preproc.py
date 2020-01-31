@@ -25,14 +25,14 @@ if dataDir == 'data/cfHCP900_FSL_GM':  # read in task-based connectivity data
 
 else:  # read in the resting-state connectivity data
     toi = 'rsfc'
-    cdata, subnums = read_raw_data(dataDir, dataDir=False)
+    cdata, subnums = read_raw_data(dataDir, actually_read=True)
 
 # pruning subjects without FFI data, for personality classification, 1003 subject dataset
 # no_ffisubs = np.array([47,  80,  88, 225, 841, 922])
 # no_weightsubs = 510
 nan_subs = [47, 80, 88, 225, 510, 841, 922]
 subnums = np.delete(subnums, nan_subs, axis=0)
-if cdata:
+if not cdata == []:
     cdata = np.delete(cdata, nan_subs, axis=0)
 
 # Read in demographic data, based on subjects given task

@@ -32,12 +32,12 @@ ffi_A = np.array(behavioral['NEOFAC_A'])
 ffi_N = np.array(behavioral['NEOFAC_N'])
 
 # # finding indices of patients without FFI data
-ffis = [ffi_A, ffi_O, ffi_C, ffi_E, ffi_N]
+ffi_labels = ['O', 'C', 'E', 'A', 'N']
+ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
 ffi_nansubs = []
 for i, x in enumerate(ffis):
-    # print(np.isnan(x).sum())
     ffi_nansubs.append(np.where(np.isnan(x))[0])
-
+ffis = np.array(ffis).T
 
 # Confound info
 weight = np.array(restricted['Weight'])
@@ -105,7 +105,6 @@ def deconfound_all(data,
         Y_tbd = outcome[tbd_ind[i]]
 
         Ytbd_corr = Y_tbd - C_tbd @ b_hat_Y
-        print(Y_tbd)
 
         X_corr.extend(Xtbd_corr)
         Y_corr.extend(Ytbd_corr)
@@ -117,9 +116,9 @@ def deconfound_all(data,
     return np.array(X_corr), np.array(Y_corr), train_ind, test_ind, val_ind
 
 
-X_corr, Y_corr, tr_i, te_i, v_i = deconfound_all(cdata, [train_ind, test_ind, val_ind],
+X_corr, Y_corr, tr_i, te_i, v_i = deconfound_all(cdata, [train_ind, test_ind, val_ind],  # TODO: change cdata
                                                  confounds=confounds, d_ind=train_ind,
-                                                 outcome=ages)  # TODO: change this for different prediction
+                                                 outcome=ffis)  # TODO: change this for different prediction
 
 ###################################################################
 # # Projecting matrices into positive definite, then tangent space
@@ -131,7 +130,7 @@ print(f'There are {num_notPD} non-PD matrices in {dataDir}...\n')
 
 # If data set has non-PD matrices, convert to closest PD matrix
 if num_notPD != 0:
-    saved_pd = f'data/transformed_data/positive_definite/scaled_deconfounded_wa_ages_pd_{toi}_{dataDir[27:]}.npy'  # TODO: change this on running new datasets
+    saved_pd = f'data/transformed_data/positive_definite/scaled_deconfounded_ages_pd_{toi}_{dataDir[27:]}.npy'  # TODO: change this on running new datasets
     if os.path.isfile(saved_pd):
         print('Loading saved positive definite matrices ...\n')
         pddata = np.load(saved_pd)
@@ -145,7 +144,7 @@ else:
     pddata = X_corr
 
 # If data set non-existent, projecting matrices into tangent space
-saved_tan = f'data/transformed_data/tangent/scaled_deconfounded_wa_ages_tan_{toi}_{dataDir[27:]}.npy'  # TODO: change this on running new datasets
+saved_tan = f'data/transformed_data/tangent/scaled_deconfounded_ages_tan_{toi}_{dataDir[27:]}.npy'  # TODO: change this on running new datasets
 if os.path.isfile(saved_tan):
     print('Loading saved tangent space matrices ...\n')
     tdata = np.load(saved_tan)
@@ -157,9 +156,9 @@ else:
 data = tdata
 del (cdata, pddata)
 
-# wa = without age as a deconfounder
+# # File path code
 # e = everything
-# eb = everything but age as deconfounder
+# eba = everything but age as deconfounder
 
 
 ############################################################################################
