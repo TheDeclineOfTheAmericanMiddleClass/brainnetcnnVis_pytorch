@@ -32,9 +32,9 @@ class BrainNetCNN(torch.nn.Module):
         self.e2econv2 = E2EBlock(32, 64, example, bias=True)
         self.E2N = torch.nn.Conv2d(64, 1, (1, self.d))
         self.N2G = torch.nn.Conv2d(1, 256, (self.d, 1))
-        self.dense1 = torch.nn.Linear(256, 128)
+        self.dense1 = torch.nn.Linear(256, 128)  # init
         self.dense2 = torch.nn.Linear(128, 30)
-        self.dense3 = torch.nn.Linear(30, 5)  # TODO: change final layer to 5-dim for personality
+        self.dense3 = torch.nn.Linear(30, 1)  # change final layer to number of predictions model should make
 
     def forward(self, x):
         out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
@@ -79,9 +79,9 @@ class HCPDataset(torch.utils.data.Dataset):
             x = X
             y = Y
 
-        self.X = torch.FloatTensor(np.expand_dims(x, 1).astype(np.float32))
+        self.X = torch.FloatTensor(np.expand_dims(x, 1).astype(np.float64))
         # self.X = torch.FloatTensor(x.astype(np.float32))
-        self.Y = torch.FloatTensor(y.astype(np.float32))
+        self.Y = torch.FloatTensor(y.astype(np.float64))
 
         print(self.mode, self.X.shape, (self.Y.shape))
 

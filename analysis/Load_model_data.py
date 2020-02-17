@@ -6,7 +6,7 @@ import pandas as pd
 from preprocessing.Analyze_raw_data import PD_transform
 from preprocessing.CVCR_Deconfounding import deconfound_matrix
 from preprocessing.Main_preproc import restricted, behavioral, subnums, cdata, dataDir, dataDirs, \
-    deconfound, deconfound_flavor, data_to_use, scaled, tan_mean
+    deconfound_flavor, data_to_use, scaled, tan_mean, predicted_outcome
 from preprocessing.Preproc_funcs import reshape_deconfounded_matrix, areNotPD
 from preprocessing.Tangent_transform import tangent_transform
 
@@ -38,6 +38,7 @@ ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
 ffi_nansubs = []
 for i, x in enumerate(ffis):
     ffi_nansubs.append(np.where(np.isnan(x))[0])
+ffi_nansubs = np.unique(ffi_nansubs)
 ffis = np.array(ffis).T
 
 # Confound info
@@ -79,7 +80,7 @@ print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total includ
 # TODO: Test data is actually deconfounded.
 #  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
-outcome = ffis
+outcome = ffi_N  # ffis, ffi_N
 
 
 def deconfound_all(data,
@@ -122,13 +123,15 @@ def deconfound_all(data,
     return np.array(X_corr), np.array(Y_corr), train_ind, test_ind, val_ind
 
 
-saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_x.npy'
-saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_y.npy'
+saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
+saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
+saved_dc_inds = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_inds.npy'
 
-if deconfound:
-    if os.path.isfile(saved_dc_x):
+if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
+    if os.path.isfile(saved_dc_x):  # TODO: save train, test, val ind
         print('Loading saved deconfounded matrices ...\n')
         dcdata = np.load(saved_dc_x)
+        train_ind, test_ind, val_ind = np.load(saved_dc_inds, allow_pickle=True)
 
         if os.path.isfile(saved_dc_y):
             Y = np.load(saved_dc_y)
@@ -141,7 +144,9 @@ if deconfound:
                                                                       confounds=confounds, d_ind=train_ind,
                                                                       outcome=outcome)  # change outcome to change prediction
         dcdata = X_corr
-        np.save(saved_dc_x, dcdata)
+        np.save(saved_dc_x, dcdata)  # saving deconfounded
+        np.save(saved_dc_inds, np.array(
+            [train_ind, test_ind, val_ind]))  # saving indices for deconfounded data with nan values removed
 
         if deconfound_flavor == 'X1Y1':
             Y = Y_corr
@@ -151,42 +156,47 @@ if deconfound:
             Y = outcome
 
     cdata = dcdata
+elif deconfound_flavor == 'X0Y0':
+    # cdata = cdata # redundant
+    Y = outcome
 ###################################################################
 # # Projecting matrices into positive definite
 ###################################################################
 
-# Test all matrices for positive definiteness
-num_notPD, which = areNotPD(cdata)
-print(f'There are {num_notPD} non-PD matrices in {dataDir}...\n')
+if data_to_use == 'pddata' or data_to_use == 'tdata':
+    # Test all matrices for positive definiteness
+    num_notPD, which = areNotPD(cdata)
+    print(f'There are {num_notPD} non-PD matrices in {dataDir}...\n')
 
-# If data set has non-PD matrices, convert to closest PD matrix
-if num_notPD != 0:
-    saved_pd = f'data/transformed_data/positive_definite/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
-    if os.path.isfile(saved_pd):
-        print('Loading saved positive definite matrices ...\n')
-        pddata = np.load(saved_pd)
+    # If data set has non-PD matrices, convert to closest PD matrix
+    if num_notPD != 0:
+        saved_pd = f'data/transformed_data/positive_definite/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
+        if os.path.isfile(saved_pd):
+            print('Loading saved positive definite matrices ...\n')
+            pddata = np.load(saved_pd)
+        else:
+            print('Transforming non-PD matrices to nearest PD neighbor ...')
+            pdmats = PD_transform(cdata[which])
+            pddata = cdata.copy()
+            pddata[which] = pdmats
+            np.save(saved_pd, pddata)
     else:
-        print('Transforming non-PD matrices to nearest PD neighbor ...')
-        pdmats = PD_transform(cdata[which])
-        pddata = cdata.copy()
-        pddata[which] = pdmats
-        np.save(saved_pd, pddata)
-else:
-    pddata = cdata
+        pddata = cdata
 
 ###################################################################
 # # Projecting matrices into tangent space
 ###################################################################
 
-# If data set non-existent, projecting matrices into tangent space
-saved_tan = f'data/transformed_data/tangent/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
-if os.path.isfile(saved_tan):
-    print('Loading saved tangent space matrices ...\n')
-    tdata = np.load(saved_tan)
-else:
-    print('Transforming all matrices into tangent space ...')
-    tdata = tangent_transform(pddata, ref=tan_mean)
-    np.save(saved_tan, tdata)
+if data_to_use == 'tdata':
+    # If data set non-existent, projecting matrices into tangent space
+    saved_tan = f'data/transformed_data/tangent/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
+    if os.path.isfile(saved_tan):
+        print('Loading saved tangent space matrices ...\n')
+        tdata = np.load(saved_tan)
+    else:
+        print('Transforming all matrices into tangent space ...')
+        tdata = tangent_transform(pddata, ref=tan_mean)
+        np.save(saved_tan, tdata)
 
 ####################################
 # CHOOSING WHICH TYPE OF DATA TO USE
@@ -194,10 +204,14 @@ else:
 
 if data_to_use == 'tdata':
     X = tdata  # Y already chosen by deconfound_flavor
+    del (cdata, pddata, tdata)
 elif data_to_use == 'cdata':
     X = cdata
 elif data_to_use == 'pddata':
     X = pddata
+    del (cdata, pddata)
+
+
 
 ############################################################################################
 # # TODO: implement shrinking of tangent space data, ?implement optimal shrinkage parameter
@@ -208,4 +222,3 @@ elif data_to_use == 'pddata':
 # regcov = (1-shrink) * cov.covariance_ + shrink * np.trace(cov)/len(cov) * np.identity(len(cov) # regularized covariance
 # stdata =
 
-del (cdata, pddata, tdata)
