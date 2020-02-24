@@ -1,12 +1,17 @@
-# from analysis.Run_Model import net, allloss_train, allloss_test, allmae_test1, allpears_test1, pears_1, mae_1, allpval_test1
+# from analysis.Run_Model import *
 import datetime
+
 import numpy as np
 import torch
 
+from preprocessing.Model_DOF import *
+
 rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
 
-filename_pt = "BNCNN_usama_tangent300_earlystop_" + rundate + "_model.pt"
-filename_stats = "BNCNN_usama_tangent300_earlystop_" + rundate + "_stats.npz"
+filename_pt = f"BNCNN_usama_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+              f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_model.pt"
+filename_stats = f"BNCNN_usama_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+                 f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_stats.npz"
 
 torch.save(net, "models/"+filename_pt)
 
@@ -15,7 +20,7 @@ torch.save(net, "models/"+filename_pt)
 #                     rundate=rundate)
 #                     # mae_training=allmae_test2, pears_train=allpears_test2)
 
-np.savez_compressed("models/" + filename_stats, test_losses=stoploss_test, train_losses=stoploss_train,
-                    mae_eng=stopmae_test1,
-                    pears_eng=stoppears_test1, pears_pval=stoppval_test1, final_pears=stoppears_1, final_mae=stopmae_1,
+np.savez_compressed("models/" + filename_stats, test_losses=losses_test, train_losses=losses_train,
+                    mae_eng=maes_test,
+                    pears_eng=pears_test, pears_pval=pvals_test, final_pears=final_pears, final_mae=final_mae,
                     rundate=rundate)

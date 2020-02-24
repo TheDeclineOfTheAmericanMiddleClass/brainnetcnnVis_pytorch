@@ -1,16 +1,14 @@
-import torch
 import numpy as np
 
-# from analysis.Init_model import trainset
-# from analysis.Define_model import BrainNetCNN
+savepath = 'models/BNCNN_usama_allFFI_Adu_rsfc_pCorr50_300_tangent_X0Y0__es502-18-21-27'
 
-# model = torch.load('models/BNCNN_usama_tangent264_300e_12-16-21-11_model.pt')
+# model = torch.load(f'{savepath}_model.pt')
 # model.eval()
 
-modelnpz = np.load('models/BNCNN_usama_tangent264_300e_12-16-21-11_stats.npz')
+modelnpz = np.load(f'{savepath}_stats.npz')  # TODO: adjust to load desired model
 
-allloss_train = modelnpz.f.train_losses
-allloss_test = modelnpz.f.test_losses
-allmae_test1 = modelnpz.f.mae_eng
-allpears_test1 = modelnpz.f.pears_eng
+losses_train = modelnpz.f.train_losses
+losses_test = modelnpz.f.test_losses
+maes_test = modelnpz.f.mae_eng
+pears_test = modelnpz.f.pears_eng
 rundate = modelnpz.f.rundate

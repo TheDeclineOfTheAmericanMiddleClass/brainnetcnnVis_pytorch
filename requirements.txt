@@ -1,5 +1,5 @@
 conda>=4.7.12
-cudatoolkit>=10.0
+cudatoolkit==10.0.130
 Keras>=2.2.5
 Keras-Applications>=1.0.8
 Keras-Preprocessing>=1.1.0

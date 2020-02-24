@@ -5,8 +5,8 @@ import pandas as pd
 
 from preprocessing.Analyze_raw_data import PD_transform
 from preprocessing.CVCR_Deconfounding import deconfound_matrix
-from preprocessing.Main_preproc import restricted, behavioral, subnums, cdata, dataDir, dataDirs, \
-    deconfound_flavor, data_to_use, scaled, tan_mean, predicted_outcome
+from preprocessing.Main_preproc import restricted, behavioral, subnums, cdata
+from preprocessing.Model_DOF import *
 from preprocessing.Preproc_funcs import reshape_deconfounded_matrix, areNotPD
 from preprocessing.Tangent_transform import tangent_transform
 
@@ -57,10 +57,7 @@ for i, x in enumerate(np.unique(gender)):  # quantifying gender
 # confounds = [gender, weight, height, sleep_quality, handedness]
 confounds = [ages, gender, weight, height, sleep_quality, handedness]
 if scaled:
-    confounds = [x / np.max(x) for _, x in enumerate(confounds)]
-    scl = '_scaled'
-else:
-    scl = ''
+    confounds = [x / np.max(x) for _, x in enumerate(confounds)]  # TODO: scale training & validation set on test scale
 
 # finding indices of patients without confound data
 con_nansubs = []
@@ -80,14 +77,24 @@ print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total includ
 # TODO: Test data is actually deconfounded.
 #  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
-outcome = ffi_N  # ffis, ffi_N
+# Setting variable for network to predict
+if predicted_outcome == 'neuro':
+    outcome = ffi_N
+elif predicted_outcome == 'open':
+    outcome = ffi_O
+elif predicted_outcome == 'allFFI':
+    outcome = ffis
+elif predicted_outcome == 'age':
+    outcome = ages
+elif predicted_outcome == 'sex':
+    outcome = gender
 
 
 def deconfound_all(data,
                    tbd_ind,
                    confounds,
                    d_ind=train_ind,
-                   outcome=ages):  # TODO: change as necessary for outcome of interest
+                   outcome=ages):
     """
     Takes input of a dataset, its confounds, and returns the deconfounded dataset
     :param outcome: ground truth value to be deconfounded, per Y1
@@ -142,7 +149,7 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
         print('Deconfounding data ...\n')
         X_corr, Y_corr, train_ind, test_ind, val_ind = deconfound_all(cdata, [train_ind, test_ind, val_ind],
                                                                       confounds=confounds, d_ind=train_ind,
-                                                                      outcome=outcome)  # change outcome to change prediction
+                                                                      outcome=outcome)
         dcdata = X_corr
         np.save(saved_dc_x, dcdata)  # saving deconfounded
         np.save(saved_dc_inds, np.array(
@@ -163,14 +170,14 @@ elif deconfound_flavor == 'X0Y0':
 # # Projecting matrices into positive definite
 ###################################################################
 
-if data_to_use == 'pddata' or data_to_use == 'tdata':
+if data_to_use == 'positive definite' or data_to_use == 'tangent':
     # Test all matrices for positive definiteness
     num_notPD, which = areNotPD(cdata)
     print(f'There are {num_notPD} non-PD matrices in {dataDir}...\n')
 
     # If data set has non-PD matrices, convert to closest PD matrix
     if num_notPD != 0:
-        saved_pd = f'data/transformed_data/positive_definite/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
+        saved_pd = f'data/transformed_data/positive_definite/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_PD.npy'
         if os.path.isfile(saved_pd):
             print('Loading saved positive definite matrices ...\n')
             pddata = np.load(saved_pd)
@@ -187,9 +194,9 @@ if data_to_use == 'pddata' or data_to_use == 'tdata':
 # # Projecting matrices into tangent space
 ###################################################################
 
-if data_to_use == 'tdata':
+if data_to_use == 'tangent':
     # If data set non-existent, projecting matrices into tangent space
-    saved_tan = f'data/transformed_data/tangent/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}.npy'
+    saved_tan = f'data/transformed_data/tangent/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_tangent.npy'
     if os.path.isfile(saved_tan):
         print('Loading saved tangent space matrices ...\n')
         tdata = np.load(saved_tan)
@@ -202,12 +209,12 @@ if data_to_use == 'tdata':
 # CHOOSING WHICH TYPE OF DATA TO USE
 ####################################
 
-if data_to_use == 'tdata':
+if data_to_use == 'tangent':
     X = tdata  # Y already chosen by deconfound_flavor
     del (cdata, pddata, tdata)
-elif data_to_use == 'cdata':
+elif data_to_use == 'untransformed':
     X = cdata
-elif data_to_use == 'pddata':
+elif data_to_use == 'positive definite':
     X = pddata
     del (cdata, pddata)
 

@@ -34,7 +34,7 @@ class BrainNetCNN(torch.nn.Module):
         self.N2G = torch.nn.Conv2d(1, 256, (self.d, 1))
         self.dense1 = torch.nn.Linear(256, 128)  # init
         self.dense2 = torch.nn.Linear(128, 30)
-        self.dense3 = torch.nn.Linear(30, 1)  # change final layer to number of predictions model should make
+        self.dense3 = torch.nn.Linear(30, num_outcome)
 
     def forward(self, x):
         out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)

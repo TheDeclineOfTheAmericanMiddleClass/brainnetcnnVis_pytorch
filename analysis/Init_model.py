@@ -4,17 +4,18 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
 from analysis.Define_model import BrainNetCNN, HCPDataset
-from preprocessing.Main_preproc import use_cuda
+from preprocessing.Main_preproc import use_cuda, multi_outcome, lr, momentum, wd
 
 # Defining train, test, validation sets
 trainset = HCPDataset(mode="train")
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=10, shuffle=True, num_workers=1)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=10, shuffle=True,
+                                          num_workers=2)  # TODO: look for changes in num_workers size
 
 testset = HCPDataset(mode="test")
-testloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=1)
+testloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=2)
 
 valset = HCPDataset(mode="valid")
-valloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=1)
+valloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=2)
 
 # Creating the model
 net = BrainNetCNN(trainset.X)
@@ -28,6 +29,10 @@ if use_cuda:
 # check if model parameters are on GPU or no
 next(net.parameters()).is_cuda
 
+# Setting criterion
+criterion = torch.nn.MSELoss()  # shows loss for each outcome
+optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+
 
 def train(epoch):  # training in mini batches
     net.train()
@@ -39,21 +44,21 @@ def train(epoch):  # training in mini batches
     for batch_idx, (inputs, targets) in enumerate(trainloader):
 
         if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)
+            if not multi_outcome:
+                inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
+            else:
+                inputs, targets = inputs.cuda(), targets.cuda()
 
         optimizer.zero_grad()
         # inputs, targets = Variable(inputs), Variable(targets)  # variable deprecated in Pytorch 0.4.0
 
         outputs = net(inputs)
-        loss = criterion(outputs,
-                         targets)  # TODO: confirm there is no loss due to incorrect broadcasting of target and input
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
-        # print statistics # TODO: add clause to sum over all predicted values' losses
-        # running_loss += loss.data[0]
-        running_loss += loss.data.item()  # only predicting 1 feature
-        # print(loss.data.item())
+        # running_loss += loss.data.item()  # only predicting 1 feature
+        running_loss += loss.data.mean(0)  # only predicting 1 feature
 
         if batch_idx % 10 == 9:  # print every 10 mini-batches
             print('Training loss: %.6f' % (running_loss / 10))
@@ -81,17 +86,21 @@ def test():
     for batch_idx, (inputs, targets) in enumerate(testloader):
 
         if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)
+            if not multi_outcome:
+                inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
+            else:
+                inputs, targets = inputs.cuda(), targets.cuda()
+
             # with torch.no_grad():
             # inputs, targets = Variable(inputs), Variable(targets)
 
             outputs = net(inputs)
             loss = criterion(outputs, targets)
 
-            # test_loss += loss.data[0]
-            test_loss += loss.data.item()  # only predicting 1 feature
+            # test_loss += loss.data.item()  # only predicting 1 feature
+            test_loss += loss.data.mean(0)  # only predicting 1 feature
 
-            preds.append(outputs.data.cpu().numpy())  # TODO: fix error with vstack dimenstionality
+            preds.append(outputs.data.cpu().numpy())
             ytrue.append(targets.data.cpu().numpy())
 
             # # converting nan to largest float 32 number
@@ -99,8 +108,9 @@ def test():
             # ytrue.append(np.nan_to_num(targets.data.cpu().numpy(), nan=np.finfo('float32').max))
 
         # print statistics
-        # running_loss += loss.data[0]
-        running_loss += loss.data.item()
+        # running_loss += loss.data.item()
+        running_loss += loss.data.mean(0)  # only predicting 1 feature
+
         # if batch_idx % 5 == 4:    # print every 5 mini-batches
         if batch_idx == len(valloader):  # just print for final batch
             print('Test loss: %.6f' % (running_loss / 5))
@@ -109,8 +119,10 @@ def test():
         # _, predicted = torch.max(outputs.data, 1)
         # total += targets.size(0)
         # correct += predicted.eq(targets.data).cpu().sum()
-
-    return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
+    if not multi_outcome:
+        return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
+    else:
+        return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
 
     # Save checkpoint.
     # acc = 100.*correct/total
@@ -129,12 +141,3 @@ def init_weights_he(m):
         # print(f'he limit {he_lim}')
         m.weight.data.uniform_(-he_lim, he_lim)
         # print(f'\nWeight initializations: {m.weight}')
-
-# Setting hyper parameters
-momentum = 0.9
-lr = 0.00001
-wd = 0.0005  ## Decay for L2 regularization
-
-# Setting criterion
-criterion = torch.nn.MSELoss()
-optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
