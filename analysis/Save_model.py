@@ -2,15 +2,14 @@
 import datetime
 
 import numpy as np
-import torch
 
 from preprocessing.Model_DOF import *
 
 rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
 
-filename_pt = f"BNCNN_usama_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+filename_pt = f"BNCNN_{architecture}_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
               f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_model.pt"
-filename_stats = f"BNCNN_usama_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+filename_stats = f"BNCNN_{architecture}_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
                  f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_stats.npz"
 
 torch.save(net, "models/"+filename_pt)

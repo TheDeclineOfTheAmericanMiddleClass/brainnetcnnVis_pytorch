@@ -3,8 +3,9 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
-from analysis.Define_model import BrainNetCNN, HCPDataset
-from preprocessing.Main_preproc import use_cuda, multi_outcome, lr, momentum, wd
+from analysis.Define_model import YeoSex_BrainNetCNN, BrainNetCNN, HCPDataset
+from preprocessing.Main_preproc import use_cuda, multi_outcome, lr, momentum, wd, predicted_outcome, architecture, \
+    multiclass
 
 # Defining train, test, validation sets
 trainset = HCPDataset(mode="train")
@@ -18,7 +19,10 @@ valset = HCPDataset(mode="valid")
 valloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=2)
 
 # Creating the model
-net = BrainNetCNN(trainset.X)
+if predicted_outcome == 'age' and architecture == 'yeo':
+    net = YeoSex_BrainNetCNN(trainset.X)
+else:
+    net = BrainNetCNN(trainset.X)
 
 # Putting the model on the GPU
 if use_cuda:
@@ -29,9 +33,15 @@ if use_cuda:
 # check if model parameters are on GPU or no
 next(net.parameters()).is_cuda
 
-# Setting criterion
-criterion = torch.nn.MSELoss()  # shows loss for each outcome
+
 optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+if multiclass:  # TODO: implement more general way to do multiclass classification
+    y_unique = trainset.Y.unique(sorted=True)
+    y_unique_count = torch.stack([(trainset.Y == y_u).sum() for y_u in y_unique])
+    criterion = torch.nn.CrossEntropyLoss(weight=y_unique_count)
+
+else:
+    criterion = torch.nn.MSELoss()  # shows loss for each outcome
 
 
 def train(epoch):  # training in mini batches

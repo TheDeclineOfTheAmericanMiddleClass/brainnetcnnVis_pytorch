@@ -21,9 +21,30 @@ class E2EBlock(torch.nn.Module):
         return torch.cat([a] * self.d, 3) + torch.cat([b] * self.d, 2)
 
 
+# Yeo-version BNCNN for Sex
+class YeoSex_BrainNetCNN(torch.nn.Module):
+    def __init__(self, example):  # removed num_classes=10
+        super(YeoSex_BrainNetCNN, self).__init__()
+        self.in_planes = example.size(1)
+        self.d = example.size(3)
+
+        self.e2econv1 = E2EBlock(1, 38, example, bias=True)  # TODO: change initial dim for multilayer
+        self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
+        self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
+        self.dense1 = torch.nn.Linear(7, num_outcome)
+
+    def forward(self, x):
+        out = F.dropout(F.linear(self.e2econv1(x), negative_slope=0.33), p=0.463)
+        out = F.dropout(F.linear(self.E2N(out), negative_slope=0.33), p=0.463)
+        out = F.dropout(F.linear(self.N2G(out), negative_slope=0.33), p=0.463)
+        out = out.view(out.size(0), -1)
+        out = F.sigmoid(self.dense1(out), )
+
+        return out
+
 # BrainNetCNN Network
 class BrainNetCNN(torch.nn.Module):
-    def __init__(self, example, num_classes=10):
+    def __init__(self, example):  # removed num_classes=10
         super(BrainNetCNN, self).__init__()
         self.in_planes = example.size(1)
         self.d = example.size(3)

@@ -1,4 +1,5 @@
 from scipy.stats import pearsonr
+from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.Init_model import *
@@ -10,17 +11,26 @@ from preprocessing.Model_DOF import *
 net.apply(init_weights_he)
 
 # initial prediction from starting weights
-preds, y_true, loss_val = test()
+preds, y_true, loss_val = test()  # TODO: figure out how to constrain sex prediction to two classes
 
-if multi_outcome:
-    # prediciton of all variables, collapsed over mae
-    mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
-    pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
-    print("Init Network")
-    for i in range(len(outcome_names)):
-        print(
-            f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
-else:
+try:
+    if multi_outcome:
+        # prediciton of all variables, collapsed over mae
+        mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
+        pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
+        print("Init Network")
+        for i in range(len(outcome_names)):
+            print(
+                f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
+
+except RuntimeError:
+    if multiclass:  # for sex, etc.
+        print(preds, y_true)
+        acc_1 = accuracy_score(preds[:, 0], y_true[:, 0])
+        print("Init Network")
+        print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
+
+except RuntimeError:
     # prediction of 1 variable
     mae_1 = mae(preds[:, 0], y_true[:, 0])
     pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
@@ -51,21 +61,29 @@ for epoch in range(nbepochs):
 
     print("\nEpoch %d" % epoch)
 
-    if multi_outcome:
-        mae_all = np.array(
-            [mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])  # num_outcomes-sized array
-        pears_all = np.array(
-            [list(pearsonr(y_true[:, i], preds[:, i])) for i in
-             range(len(outcome_names))])  # 2 x num_outcomes-sized array
-        for i in range(len(outcome_names)):
-            print(
-                f"Test Set, {outcome_names[i]} : MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")  # deleted 100 * factors
+    try:
+        if multi_outcome:
+            mae_all = np.array(
+                [mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])  # num_outcomes-sized array
+            pears_all = np.array(
+                [list(pearsonr(y_true[:, i], preds[:, i])) for i in
+                 range(len(outcome_names))])  # 2 x num_outcomes-sized array
+            for i in range(len(outcome_names)):
+                print(
+                    f"Test Set, {outcome_names[i]} : MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")  # deleted 100 * factors
 
-        allmae_test1.append(list(mae_all))
-        allpears_test1.append(list(pears_all[:, 0]))
-        allpval_test1.append(list(pears_all[:, 1]))
+            allmae_test1.append(list(mae_all))
+            allpears_test1.append(list(pears_all[:, 0]))
+            allpval_test1.append(list(pears_all[:, 1]))
 
-    else:
+    except RuntimeError:
+        if multiclass:  # for sex, etc.
+            acc_1 = accuracy_score(preds, y_true)
+            print(f"Test Set, {outcome_names} : Accuracy : {acc_1:.02}")
+            allmae_test1.append(mae_1)
+
+
+    except RuntimeError:
         mae_1 = mae(preds, y_true)
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])  # NOTE: pearsonr only takes 1-dim arrays
         print(f"Test Set, {outcome_names} : MAE : {mae_1:.02}, pearson R: {pears_1[0]:.02}, p = {pears_1[1]:.04}")
@@ -86,6 +104,13 @@ for epoch in range(nbepochs):
                 allpears_test1[epoch])).sum() >= majority
             if stagnant_mae and stagnant_r:
                 break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
+
+        elif multiclass:
+            stagnant_mae = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
+                # MAE here actually accuracy
+                epoch]).sum() >= majority
+            if stagnant_mae:
+                break
         else:
             stagnant_mae = np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[epoch]
             stagnant_r = np.nanmean(allpears_test1[epoch - ep_int:-1], axis=0) <= allpears_test1[epoch]

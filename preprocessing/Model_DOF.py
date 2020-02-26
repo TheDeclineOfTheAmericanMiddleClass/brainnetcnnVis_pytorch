@@ -13,23 +13,25 @@ dataDirs = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',  # 
             'Adu_rsfc_Corr_300': 'data/self_created_HCP_mats/ICA300_corr'  # should be equivalent to 'HCP_rsfc_Corr_300'
             }
 
-# Degrees of freedom in the model input/output
-# Not pictured here: specific confounds, various architectures
-dataDir = dataDirs['Adu_rsfc_pCorr50_300']  # Choosing data directory for training
+# Degrees of freedom in the model input/output  (not pictured here: specific confounds, various architectures)
+dataDir = dataDirs['HCP_rsfc_pCorr01_300']  # Choosing data directory for training
 predicted_outcome = 'sex'  # 'neuro', 'age', 'sex', 'allFFI', 'open'
+num_classes = 2  # number of classes per outcome
 num_outcome = 1  # number of outcomes predicted
 multi_outcome = (num_outcome > 1)  # necessary boolean for model output & architecture
 # multi_input = False  # TODO: implement multiple input matrices
 data_to_use = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'euclidean'  # euclidean, harmonic, log euclidean, riemannian, kullback
 deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0'
-scaled = False  # whether confound are scaled [0,1] # TODO: scale confounds only w.r.t. training data
+scaled = False  # whether confound are scaled by confound's max value in trainin set
+architecture = 'yeo'  # 'yeo', 'kawahara', 'usama'# Setting criterion
 
 # Setting hyper parameters for training
 momentum = 0.9  # momentum
-lr = 0.01  # learning rate, changed from 0.00001 on 2.24.20
-wd = 0.0005  # weight decay during gradient descent
+lr = 1e-4  # learning rate, changed from 0.00001 on 2.24.20
+wd = 1e-3  # weight decay during gradient descent, changed form .0005 on 2.25.20
 ep_int = 5  # setting early stopping interval, how frequently changes in mae are checked
+
 
 # Setting necessary variables for labeling plots and saved files
 if multi_outcome and predicted_outcome == 'allFFI':  # TODO: logic must be changed if predicting various combinations of features
@@ -44,3 +46,8 @@ if scaled:
     scl = '_scaled'
 else:
     scl = ''
+
+if num_classes > 1:
+    multiclass = True
+else:
+    multiclass = False

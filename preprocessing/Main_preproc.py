@@ -1,5 +1,3 @@
-import torch
-
 from preprocessing.Analyze_raw_data import *
 from preprocessing.Model_DOF import *
 from preprocessing.Read_demographic_data import read_dem_data
@@ -23,6 +21,7 @@ else:  # read in the resting-state connectivity data
         toi = 'rsfc'
     cdata, subnums = read_raw_data(dataDir, actually_read=True)
 
+# TODO: include clause to delete subs if not a .npy file
 # If predicting any FFI outcome and 1003 subjects in dataset, delete subjects with no FFI scores
 if np.any(np.isin(['allFFI', 'neuro', 'open'], predicted_outcome)) and len(cdata) == 1003:
     nan_subs = []

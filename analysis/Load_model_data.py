@@ -54,22 +54,25 @@ for i, x in enumerate(np.unique(gender)):  # quantifying gender
     gen = np.where(gender == x)[0]
     gender[gen] = dummyv[i]
 
-# confounds = [gender, weight, height, sleep_quality, handedness]
-confounds = [ages, gender, weight, height, sleep_quality, handedness]
+## Defining train, test, validaton sets
+# 70-15-15 train test validation split
+train_ind = np.where(np.isin(subnums, final_train_list))[0]
+test_ind = np.where(np.isin(subnums, final_test_list))[0]
+val_ind = np.where(np.isin(subnums, final_val_list))[0]
+print(
+    f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets ({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
+
+confounds = [ages, gender, weight, height, sleep_quality, handedness]  # defining confounds
+
+# scaling confounds ONLY according to train set
 if scaled:
-    confounds = [x / np.max(x) for _, x in enumerate(confounds)]  # TODO: scale training & validation set on test scale
+    confounds = [x / np.max(x[train_ind]) for _, x in enumerate(confounds)]
 
 # finding indices of patients without confound data
 con_nansubs = []
 for i, x in enumerate(confounds):
     con_nansubs.append(np.where(pd.isnull(x))[0])
 
-## Defining train, test, validaton sets
-# 70-15-15 train test validation split
-train_ind = np.where(np.isin(subnums, final_train_list))[0]
-test_ind = np.where(np.isin(subnums, final_test_list))[0]
-val_ind = np.where(np.isin(subnums, final_val_list))[0]
-print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets...\n')
 
 ###############################################################
 # # Deconfounding X and Y for data classes
@@ -134,8 +137,8 @@ saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(da
 saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
 saved_dc_inds = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_inds.npy'
 
-if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
-    if os.path.isfile(saved_dc_x):  # TODO: save train, test, val ind
+if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
+    if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it
         print('Loading saved deconfounded matrices ...\n')
         dcdata = np.load(saved_dc_x)
         train_ind, test_ind, val_ind = np.load(saved_dc_inds, allow_pickle=True)
@@ -145,27 +148,38 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
         else:
             Y = outcome
 
-    else:
+    else:  # if data hasn't been deconfounded, deconfound it
         print('Deconfounding data ...\n')
         X_corr, Y_corr, train_ind, test_ind, val_ind = deconfound_all(cdata, [train_ind, test_ind, val_ind],
                                                                       confounds=confounds, d_ind=train_ind,
                                                                       outcome=outcome)
         dcdata = X_corr
-        np.save(saved_dc_x, dcdata)  # saving deconfounded
+        np.save(saved_dc_x, dcdata)  # saving deconfounded data
         np.save(saved_dc_inds, np.array(
             [train_ind, test_ind, val_ind]))  # saving indices for deconfounded data with nan values removed
 
-        if deconfound_flavor == 'X1Y1':
+        if deconfound_flavor == 'X1Y1':  # load deconfounded Y data
             Y = Y_corr
             np.save(saved_dc_y, Y)
 
         elif deconfound_flavor == 'X1Y0':
             Y = outcome
 
-    cdata = dcdata
-elif deconfound_flavor == 'X0Y0':
-    # cdata = cdata # redundant
+    cdata = dcdata  # using deconfounded data for further analyses
+
+elif deconfound_flavor == 'X0Y0':  # no changes to X data
     Y = outcome
+
+##########################################
+## Setting up multiclass classification ##
+##########################################
+
+if multiclass:  # Sets multiclass targets to binary data
+    Y_classes = np.zeros((Y.squeeze().shape[0], len(np.unique(Y))))
+    for i, x in enumerate(np.unique(Y)):
+        Y_classes[[np.where(Y == x)[0]], i] = 1
+    Y = Y_classes
+
 ###################################################################
 # # Projecting matrices into positive definite
 ###################################################################
