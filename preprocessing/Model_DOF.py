@@ -14,7 +14,7 @@ dataDirs = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',  # 
             }
 
 # Degrees of freedom in the model input/output  (not pictured here: specific confounds, various architectures)
-dataDir = dataDirs['HCP_rsfc_pCorr01_300']  # Choosing data directory for training
+dataDir = dataDirs['Adu_rsfc_pCorr50_300']  # Choosing data directory for training
 predicted_outcome = 'sex'  # 'neuro', 'age', 'sex', 'allFFI', 'open'
 num_classes = 2  # number of classes per outcome
 num_outcome = 1  # number of outcomes predicted
@@ -29,8 +29,8 @@ architecture = 'yeo'  # 'yeo', 'kawahara', 'usama'# Setting criterion
 # Setting hyper parameters for training
 momentum = 0.9  # momentum
 lr = 1e-4  # learning rate, changed from 0.00001 on 2.24.20
-wd = 1e-3  # weight decay during gradient descent, changed form .0005 on 2.25.20
-ep_int = 5  # setting early stopping interval, how frequently changes in mae are checked
+wd = .0005
+ep_int = 2  # setting early stopping interval, how frequently changes in mae are checked
 
 
 # Setting necessary variables for labeling plots and saved files

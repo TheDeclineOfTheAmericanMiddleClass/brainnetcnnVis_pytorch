@@ -3,12 +3,10 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.Init_model import *
-# from analysis.Load_model_data import *
-# from analysis.Define_model import *
 from preprocessing.Model_DOF import *
 
 # initializing weights
-net.apply(init_weights_he)
+# net.apply(init_weights_he)
 
 # initial prediction from starting weights
 preds, y_true, loss_val = test()  # TODO: figure out how to constrain sex prediction to two classes
@@ -82,8 +80,8 @@ for epoch in range(nbepochs):
             print(f"Test Set, {outcome_names} : Accuracy : {acc_1:.02}")
             allmae_test1.append(mae_1)
 
-
-    except RuntimeError:
+    else:
+        # try:
         mae_1 = mae(preds, y_true)
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])  # NOTE: pearsonr only takes 1-dim arrays
         print(f"Test Set, {outcome_names} : MAE : {mae_1:.02}, pearson R: {pears_1[0]:.02}, p = {pears_1[1]:.04}")
@@ -91,6 +89,10 @@ for epoch in range(nbepochs):
         allmae_test1.append(mae_1)
         allpears_test1.append(pears_1[0])
         allpval_test1.append(pears_1[1])
+        #
+        # except ValueError:
+        #     print(f"Test Set, {outcome_names} : MAE : undefined, pearson R: undefined")
+        #     continue
 
     # # EARLY STOPPING
     # Checking every ep_int epochs. If there is no improvement on avg MAE or Pearson r, stop training
@@ -100,23 +102,30 @@ for epoch in range(nbepochs):
             majority = int(np.ceil(len(allmae_test1[epoch]) / 2))
             stagnant_mae = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
                 epoch]).sum() >= majority
-            stagnant_r = (np.nanmean(np.abs(allpears_test1[epoch - ep_int:-1]), axis=0) <= np.abs(
-                allpears_test1[epoch])).sum() >= majority
-            if stagnant_mae and stagnant_r:
-                break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
-
-        elif multiclass:
-            stagnant_mae = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
-                # MAE here actually accuracy
-                epoch]).sum() >= majority
-            if stagnant_mae:
+            try:
+                stagnant_r = (np.nanmean(np.abs(allpears_test1[epoch - ep_int:-1]), axis=0) <= np.abs(
+                    allpears_test1[epoch])).sum() >= majority
+                if stagnant_mae and stagnant_r:
+                    break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
+            except ValueError:
+                print('pearson R unedfined...stopping training')
                 break
+
+        elif multiclass:  # mae here actually accuracy
+            stagnant_acc = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
+                epoch]).sum() >= majority
+            if stagnant_acc:
+                break
+
         else:
             stagnant_mae = np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[epoch]
-            stagnant_r = np.nanmean(allpears_test1[epoch - ep_int:-1], axis=0) <= allpears_test1[epoch]
-            if stagnant_mae and stagnant_r:
+            try:
+                stagnant_r = np.nanmean(allpears_test1[epoch - ep_int:-1], axis=0) <= allpears_test1[epoch]
+                if stagnant_mae and stagnant_r:
+                    break
+            except ValueError or RuntimeWarning:
+                # if stagnant_mae:
                 break
-
 
 # take only values of MAE in epochs before the one that triggered early stopping
 # ... OR if no early stopping, take values that came ep_int epochs before final one

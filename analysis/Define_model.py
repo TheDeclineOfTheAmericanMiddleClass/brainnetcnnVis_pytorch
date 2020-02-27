@@ -1,5 +1,6 @@
-import torch.nn
+import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
 import torch.utils.data.dataset
 
 from analysis.Load_model_data import *
@@ -20,8 +21,9 @@ class E2EBlock(torch.nn.Module):
         b = self.cnn2(x)
         return torch.cat([a] * self.d, 3) + torch.cat([b] * self.d, 2)
 
+    # Yeo-version BNCNN for Sex
 
-# Yeo-version BNCNN for Sex
+
 class YeoSex_BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(YeoSex_BrainNetCNN, self).__init__()
@@ -31,16 +33,38 @@ class YeoSex_BrainNetCNN(torch.nn.Module):
         self.e2econv1 = E2EBlock(1, 38, example, bias=True)  # TODO: change initial dim for multilayer
         self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
         self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
-        self.dense1 = torch.nn.Linear(7, num_outcome)
+        self.dense1 = torch.nn.Linear(7, num_classes)
+
+        for m in self.modules():  # initializing weights
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
     def forward(self, x):
-        out = F.dropout(F.linear(self.e2econv1(x), negative_slope=0.33), p=0.463)
-        out = F.dropout(F.linear(self.E2N(out), negative_slope=0.33), p=0.463)
-        out = F.dropout(F.linear(self.N2G(out), negative_slope=0.33), p=0.463)
+        out = F.dropout(self.e2econv1(x), p=0.463)
+        out = F.dropout(self.E2N(out), p=0.463)
+        out = F.dropout(self.N2G(out), p=0.463)
         out = out.view(out.size(0), -1)
-        out = F.sigmoid(self.dense1(out), )
+        out = F.sigmoid(self.dense1(out))  # adding sigmoid for binary sex
+        # TODO: add 0/1 thresholding to final layer of network
 
         return out
+
+    # def predict(self, x):
+    #     """This function takes an input and predicts the class, (0 or 1)"""
+    #     # Apply softmax to output.
+    #     pred = F.softmax(self.forward(x))
+    #     ans = []
+    #     # Pick the class with maximum weight
+    #     for t in pred:
+    #         if t[0] > t[1]:
+    #             ans.append(0)
+    #         else:
+    #             ans.append(1)
+    #     return torch.tensor(ans)
+
 
 # BrainNetCNN Network
 class BrainNetCNN(torch.nn.Module):
@@ -57,6 +81,13 @@ class BrainNetCNN(torch.nn.Module):
         self.dense2 = torch.nn.Linear(128, 30)
         self.dense3 = torch.nn.Linear(30, num_outcome)
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
     def forward(self, x):
         out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
         out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
@@ -68,6 +99,7 @@ class BrainNetCNN(torch.nn.Module):
         out = F.relu(self.dense3(out))
 
         return out
+
 
 class HCPDataset(torch.utils.data.Dataset):
 
@@ -100,9 +132,8 @@ class HCPDataset(torch.utils.data.Dataset):
             x = X
             y = Y
 
-        self.X = torch.FloatTensor(np.expand_dims(x, 1).astype(np.float64))
-        # self.X = torch.FloatTensor(x.astype(np.float32))
-        self.Y = torch.FloatTensor(y.astype(np.float64))
+        self.X = torch.FloatTensor(np.expand_dims(x, 1))  # removed .astype(np.float64)
+        self.Y = torch.FloatTensor(y)
 
         print(self.mode, self.X.shape, (self.Y.shape))
 

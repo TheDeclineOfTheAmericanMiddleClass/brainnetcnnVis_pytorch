@@ -19,7 +19,7 @@ valset = HCPDataset(mode="valid")
 valloader = torch.utils.data.DataLoader(testset, batch_size=10, shuffle=False, num_workers=2)
 
 # Creating the model
-if predicted_outcome == 'age' and architecture == 'yeo':
+if predicted_outcome == 'sex' and architecture == 'yeo':
     net = YeoSex_BrainNetCNN(trainset.X)
 else:
     net = BrainNetCNN(trainset.X)
@@ -33,11 +33,12 @@ if use_cuda:
 # check if model parameters are on GPU or no
 next(net.parameters()).is_cuda
 
-
 optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+
 if multiclass:  # TODO: implement more general way to do multiclass classification
     y_unique = trainset.Y.unique(sorted=True)
-    y_unique_count = torch.stack([(trainset.Y == y_u).sum() for y_u in y_unique])
+    y_unique_count = torch.stack([trainset.Y[:, i].sum() for i, y_u in enumerate(y_unique)]) / trainset.Y.__len__()
+    y_unique_count = y_unique_count.float().cuda()
     criterion = torch.nn.CrossEntropyLoss(weight=y_unique_count)
 
 else:
@@ -63,7 +64,7 @@ def train(epoch):  # training in mini batches
         # inputs, targets = Variable(inputs), Variable(targets)  # variable deprecated in Pytorch 0.4.0
 
         outputs = net(inputs)
-        loss = criterion(outputs, targets)
+        loss = criterion(outputs, targets.squeeze().long())
         loss.backward()
         optimizer.step()
 
@@ -105,7 +106,7 @@ def test():
             # inputs, targets = Variable(inputs), Variable(targets)
 
             outputs = net(inputs)
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets.long())
 
             # test_loss += loss.data.item()  # only predicting 1 feature
             test_loss += loss.data.mean(0)  # only predicting 1 feature
@@ -141,13 +142,28 @@ def test():
 ### Weights initialization for the dense layers using He Uniform initialization
 ### He et al., http://arxiv.org/abs/1502.01852
 
+
+# TODO: inspect why only the first dense layer dims are used for weight intiialization
 def init_weights_he(m):
     # https://keras.io/initializers/#he_uniform
     print(m)
     if type(m) == torch.nn.Linear:
         fan_in = net.dense1.in_features
-        # print(f'In features for dense 1: {fan_in}')
+        print(f'In features for dense 1: {fan_in}')
         he_lim = np.sqrt(6 / fan_in)  # Note: fixed error in he limit calculation (Feb 10, 2020)
-        # print(f'he limit {he_lim}')
+        print(f'he limit {he_lim}')
         m.weight.data.uniform_(-he_lim, he_lim)
-        # print(f'\nWeight initializations: {m.weight}')
+        print(f'\nWeight initializations: {m.weight}')
+
+
+def init_weights_XU(m):
+    """Init weights per xavier uniform method"""
+    print(m)
+    if type(m) == torch.nn.Linear:
+        fan_in = net.dense1.in_features
+        fan_out = net.dense1.out_features
+        print(f'In features for dense 1: {fan_in}')
+        he_lim = np.sqrt(6 / fan_in + fan_out)  # Note: fixed error in he limit calculation (Feb 10, 2020)
+        print(f'he limit {he_lim}')
+        m.weight.data.uniform_(-he_lim, he_lim)
+        print(f'\nWeight initializations: {m.weight}')
