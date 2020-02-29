@@ -14,24 +14,37 @@ dataDirs = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',  # 
             }
 
 # Degrees of freedom in the model input/output  (not pictured here: specific confounds, various architectures)
-dataDir = dataDirs['Adu_rsfc_pCorr50_300']  # Choosing data directory for training
-predicted_outcome = 'sex'  # 'neuro', 'age', 'sex', 'allFFI', 'open'
-num_classes = 2  # number of classes per outcome
-num_outcome = 1  # number of outcomes predicted
-multi_outcome = (num_outcome > 1)  # necessary boolean for model output & architecture
+dataDir = dataDirs['HCP_rsfc_pCorr01_300']  # Choosing data directory for training
+predicted_outcome = 'age'  # 'neuro', 'age', 'sex', 'allFFI', 'open'
 # multi_input = False  # TODO: implement multiple input matrices
-data_to_use = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
+data_to_use = 'tangent'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'euclidean'  # euclidean, harmonic, log euclidean, riemannian, kullback
 deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0'
-scaled = False  # whether confound are scaled by confound's max value in trainin set
-architecture = 'yeo'  # 'yeo', 'kawahara', 'usama'# Setting criterion
+scaled = False  # whether confound are scaled by confound's max value in training set
+architecture = 'usama'  # 'yeo', 'kawahara', 'usama', 'parvathy' # TODO: implement kawahara
 
 # Setting hyper parameters for training
 momentum = 0.9  # momentum
-lr = 1e-4  # learning rate, changed from 0.00001 on 2.24.20
+lr = .00001  # learning rate, changed from 0.00001 on 2.24.20
 wd = .0005
-ep_int = 2  # setting early stopping interval, how frequently changes in mae are checked
 
+# setting how many epochs the network is trained
+nbepochs = 300  # number of epochs to run
+early = False  # early stopping?
+ep_int = 10  # early stopping interval
+min_ep = 30  # minimum epochs after which to check for stagnation in learning
+
+if predicted_outcome == 'sex':
+    num_classes = 2  # number of classes per outcome
+else:
+    num_classes = 1
+
+if predicted_outcome == 'allFFI':
+    num_outcome = 5  # number of outcomes predicted
+else:
+    num_outcome = 1
+
+multi_outcome = (num_outcome > 1)  # necessary boolean for model output & architecture
 
 # Setting necessary variables for labeling plots and saved files
 if multi_outcome and predicted_outcome == 'allFFI':  # TODO: logic must be changed if predicting various combinations of features

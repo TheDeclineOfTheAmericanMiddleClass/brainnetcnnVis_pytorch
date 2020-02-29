@@ -11,24 +11,23 @@ from preprocessing.Model_DOF import *
 # initial prediction from starting weights
 preds, y_true, loss_val = test()  # TODO: figure out how to constrain sex prediction to two classes
 
-try:
-    if multi_outcome:
-        # prediciton of all variables, collapsed over mae
-        mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
-        pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
-        print("Init Network")
-        for i in range(len(outcome_names)):
-            print(
-                f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
+# try:
+if multi_outcome:
+    mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
+    pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
+    print("Init Network")
+    for i in range(len(outcome_names)):
+        print(
+            f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
 
-except RuntimeError:
-    if multiclass:  # for sex, etc.
-        print(preds, y_true)
-        acc_1 = accuracy_score(preds[:, 0], y_true[:, 0])
-        print("Init Network")
-        print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
+# except RuntimeError or ValueError:
+if multiclass:  # for sex, etc.
+    acc_1 = accuracy_score(preds, y_true)
+    print("Init Network")
+    print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
 
-except RuntimeError:
+
+else:
     # prediction of 1 variable
     mae_1 = mae(preds[:, 0], y_true[:, 0])
     pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
@@ -40,45 +39,51 @@ except RuntimeError:
 # # Run Epochs of training and testing
 ######################################
 
-nbepochs = 300
-
 allloss_train = []
 allloss_test = []
-allmae_test1 = []
-allpears_test1 = []
-allpval_test1 = []
+allacc_test = []
+allmae_test = []
+allpears_test = []
+allpval_test = []
 
 for epoch in range(nbepochs):
-    loss_train = train(epoch)
 
+    loss_train = train()
     allloss_train.append(loss_train)
 
     preds, y_true, loss_val = test()
-
     allloss_test.append(loss_val)
 
     print("\nEpoch %d" % epoch)
 
-    try:
-        if multi_outcome:
-            mae_all = np.array(
-                [mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])  # num_outcomes-sized array
-            pears_all = np.array(
-                [list(pearsonr(y_true[:, i], preds[:, i])) for i in
-                 range(len(outcome_names))])  # 2 x num_outcomes-sized array
-            for i in range(len(outcome_names)):
-                print(
-                    f"Test Set, {outcome_names[i]} : MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")  # deleted 100 * factors
+    if multi_outcome:
+        # try:
+        mae_all = np.array(
+            [mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])  # num_outcomes-sized array
+        pears_all = np.array(
+            [list(pearsonr(y_true[:, i], preds[:, i])) for i in
+             range(len(outcome_names))])  # 2 x num_outcomes-sized array
+        for i in range(len(outcome_names)):
+            print(
+                f"Test Set, {outcome_names[i]} : MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")  # deleted 100 * factors
 
-            allmae_test1.append(list(mae_all))
-            allpears_test1.append(list(pears_all[:, 0]))
-            allpval_test1.append(list(pears_all[:, 1]))
+        allmae_test.append(list(mae_all))
+        allpears_test.append(list(pears_all[:, 0]))
+        allpval_test.append(list(pears_all[:, 1]))
 
-    except RuntimeError:
-        if multiclass:  # for sex, etc.
-            acc_1 = accuracy_score(preds, y_true)
-            print(f"Test Set, {outcome_names} : Accuracy : {acc_1:.02}")
-            allmae_test1.append(mae_1)
+        # except ValueError:
+        #     print('pearson R and/or MAE undefined...stopping training')
+        #     break
+
+    if multiclass and num_classes == 2:  # for sex, other binary classifications
+        # try:
+        acc = accuracy_score(preds, y_true)
+        print(f"Test Set, {outcome_names} : Accuracy : {acc:.02}")
+        allacc_test.append(acc)
+
+        # except ValueError:
+        #     print('Accuracy broken...stopping training')
+        #     break
 
     else:
         # try:
@@ -86,55 +91,64 @@ for epoch in range(nbepochs):
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])  # NOTE: pearsonr only takes 1-dim arrays
         print(f"Test Set, {outcome_names} : MAE : {mae_1:.02}, pearson R: {pears_1[0]:.02}, p = {pears_1[1]:.04}")
 
-        allmae_test1.append(mae_1)
-        allpears_test1.append(pears_1[0])
-        allpval_test1.append(pears_1[1])
-        #
-        # except ValueError:
-        #     print(f"Test Set, {outcome_names} : MAE : undefined, pearson R: undefined")
-        #     continue
+        allmae_test.append(mae_1)
+        allpears_test.append(pears_1[0])
+        allpval_test.append(pears_1[1])
 
-    # # EARLY STOPPING
+        # except ValueError:
+        #     print('pearson R and/or MAE undefined...stopping training')
+        #     break
+
+    ####################
+    ## EARLY STOPPING ##
+    ####################
     # Checking every ep_int epochs. If there is no improvement on avg MAE or Pearson r, stop training
-    if (epoch > 0) & (epoch % ep_int == 0):
-        # if model stops learning on at least half of predicted outcomes, break
-        if multi_outcome:
-            majority = int(np.ceil(len(allmae_test1[epoch]) / 2))
-            stagnant_mae = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
+    if (epoch > min_ep) and early:
+        if multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
+            majority = int(np.ceil(len(allmae_test[epoch]) / 2))
+
+            # try: # ...to assess MAE and pearson R
+            stagnant_mae = (np.nanmean(allmae_test[epoch - ep_int:-1], axis=0) <= allmae_test[
                 epoch]).sum() >= majority
-            try:
-                stagnant_r = (np.nanmean(np.abs(allpears_test1[epoch - ep_int:-1]), axis=0) <= np.abs(
-                    allpears_test1[epoch])).sum() >= majority
-                if stagnant_mae and stagnant_r:
-                    break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
-            except ValueError:
-                print('pearson R unedfined...stopping training')
-                break
+            stagnant_r = (np.nanmean(np.abs(allpears_test[epoch - ep_int:-1]), axis=0) <= np.abs(
+                allpears_test[epoch])).sum() >= majority
+            if stagnant_mae and stagnant_r:
+                break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
+            # except ValueError:
+            #     print('pearson R and/or MAE undefined...stopping training')
+            #     break
 
         elif multiclass:  # mae here actually accuracy
-            stagnant_acc = (np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[
-                epoch]).sum() >= majority
-            if stagnant_acc:
+            # try:
+            if np.nanmean(allacc_test[epoch - ep_int:-1]) <= allacc_test[epoch]:
                 break
-
+            # except ValueError:
+            #     print(' Accuracy broken...stopping training')
+            #     break
         else:
-            stagnant_mae = np.nanmean(allmae_test1[epoch - ep_int:-1], axis=0) <= allmae_test1[epoch]
-            try:
-                stagnant_r = np.nanmean(allpears_test1[epoch - ep_int:-1], axis=0) <= allpears_test1[epoch]
-                if stagnant_mae and stagnant_r:
-                    break
-            except ValueError or RuntimeWarning:
-                # if stagnant_mae:
+            # try:
+            stagnant_mae = np.nanmean(allmae_test[epoch - ep_int:-1], axis=0) <= allmae_test[epoch]
+            stagnant_r = np.nanmean(allpears_test[epoch - ep_int:-1], axis=0) <= allpears_test[epoch]
+            if stagnant_mae and stagnant_r:
                 break
+            # except ValueError or RuntimeWarning:
+            #     print('pearson R and/or MAE undefined...stopping training')
+            #     break
 
-# take only values of MAE in epochs before the one that triggered early stopping
+# Take only values of MAE in epochs before the one that triggered early stopping
 # ... OR if no early stopping, take values that came ep_int epochs before final one
 losses_train = allloss_train[:-ep_int]
 losses_test = allloss_test[:-ep_int]
-maes_test = allmae_test1[:-ep_int]
-pvals_test = allpval_test1[:-ep_int]
-pears_test = allpears_test1[:-ep_int]
 
-# the model's final performance
-final_mae = maes_test[-1]
-final_pears = (pears_test[-1], pvals_test[-1])
+if multiclass and num_classes == 2:
+    acc_test = allacc_test[:-ep_int]
+    final_acc = acc_test[-1]  # TODO: add acc to save and load files
+
+else:
+    maes_test = allmae_test[:-ep_int]
+    pears_test = allpears_test[:-ep_int]
+    pvals_test = allpval_test[:-ep_int]
+
+    # the model's final performance
+    final_mae = maes_test[-1]
+    final_pears = (pears_test[-1], pvals_test[-1])

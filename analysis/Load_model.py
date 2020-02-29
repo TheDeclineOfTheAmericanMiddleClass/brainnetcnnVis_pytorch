@@ -11,4 +11,5 @@ losses_train = modelnpz.f.train_losses
 losses_test = modelnpz.f.test_losses
 maes_test = modelnpz.f.mae_eng
 pears_test = modelnpz.f.pears_eng
+acc_test = modelnpz.f.acc_test
 rundate = modelnpz.f.rundate

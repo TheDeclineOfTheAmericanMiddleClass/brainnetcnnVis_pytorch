@@ -24,9 +24,52 @@ class E2EBlock(torch.nn.Module):
     # Yeo-version BNCNN for Sex
 
 
+class ParvathySex_BrainNetCNN(torch.nn.Module):
+    def __init__(self, example):  # removed num_classes=10
+        super(ParvathySex_BrainNetCNN, self).__init__()
+        print('Initializing BNCNN: Parvathy_Sex Architecture')
+        self.in_planes = example.size(1)
+        self.d = example.size(3)
+
+        self.e2econv1 = E2EBlock(1, 16, example, bias=True)  # TODO: change initial dim for multilayer
+        self.E2N = torch.nn.Conv2d(16, 128, (1, self.d))
+        self.N2G = torch.nn.Conv2d(128, 26, (self.d, 1))
+        self.dense1 = torch.nn.Linear(26, num_classes)
+
+        for m in self.modules():  # initializing weights
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        out = F.dropout(self.e2econv1(x), p=0.6)
+        out = F.dropout(self.E2N(out), p=0.6)
+        out = F.dropout(self.N2G(out), p=0.6)
+        out = out.view(out.size(0), -1)
+        out = F.sigmoid(self.dense1(out))  # adding sigmoid for binary sex
+
+        return out
+
+    # def predict(self, x):
+    #     """This function takes an input and predicts the class, (0 or 1)"""
+    #     # Apply softmax to output.
+    #     pred = F.softmax(self.forward(x))
+    #     ans = []
+    #     # Pick the class with maximum weight
+    #     for t in pred:
+    #         if t[0] > t[1]:
+    #             ans.append(0)
+    #         else:
+    #             ans.append(1)
+    #     return torch.tensor(ans)
+
+
 class YeoSex_BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(YeoSex_BrainNetCNN, self).__init__()
+        print('Initializing BNCNN: Yeo_Sex Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
@@ -48,7 +91,6 @@ class YeoSex_BrainNetCNN(torch.nn.Module):
         out = F.dropout(self.N2G(out), p=0.463)
         out = out.view(out.size(0), -1)
         out = F.sigmoid(self.dense1(out))  # adding sigmoid for binary sex
-        # TODO: add 0/1 thresholding to final layer of network
 
         return out
 
@@ -70,6 +112,7 @@ class YeoSex_BrainNetCNN(torch.nn.Module):
 class BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(BrainNetCNN, self).__init__()
+        print('Initializing BNCNN: Usama Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
