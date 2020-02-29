@@ -27,7 +27,7 @@ class E2EBlock(torch.nn.Module):
 class ParvathySex_BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(ParvathySex_BrainNetCNN, self).__init__()
-        print('Initializing BNCNN: Parvathy_Sex Architecture')
+        print('\nInitializing BNCNN: Parvathy_Sex Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
@@ -69,7 +69,7 @@ class ParvathySex_BrainNetCNN(torch.nn.Module):
 class YeoSex_BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(YeoSex_BrainNetCNN, self).__init__()
-        print('Initializing BNCNN: Yeo_Sex Architecture')
+        print('\nInitializing BNCNN: Yeo_Sex Architecture...')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
@@ -84,6 +84,7 @@ class YeoSex_BrainNetCNN(torch.nn.Module):
             elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+        print('BNCNN instance initialized.\n')
 
     def forward(self, x):
         out = F.dropout(self.e2econv1(x), p=0.463)
@@ -112,7 +113,7 @@ class YeoSex_BrainNetCNN(torch.nn.Module):
 class BrainNetCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(BrainNetCNN, self).__init__()
-        print('Initializing BNCNN: Usama Architecture')
+        print('\nInitializing BNCNN: Usama Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 

@@ -1,5 +1,4 @@
 import torch
-import torch
 import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
@@ -11,10 +10,9 @@ from preprocessing.Main_preproc import use_cuda, multi_outcome, lr, momentum, wd
 trainset = HCPDataset(mode="train")
 testset = HCPDataset(mode="test")
 valset = HCPDataset(mode="valid")
-
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=1)
-testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1)
-valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
+valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
 
 # Creating the model
 if predicted_outcome == 'sex' and architecture == 'yeo':
@@ -77,7 +75,7 @@ def train():  # training in mini batches
         if batch_idx % 10 == 9:  # print every 10 mini-batches
             print('Training loss: %.6f' % (running_loss / 10))
             running_loss = 0.0
-        _, predicted = torch.max(outputs.data, 1, keepdim=True)  # TODO: ensure change to keepdim=True works
+        _, predicted = torch.max(outputs.data, 1, keepdim=True)
 
 
     return running_loss / batch_idx

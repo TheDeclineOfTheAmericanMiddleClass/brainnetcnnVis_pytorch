@@ -1,11 +1,4 @@
-# from os import listdir
-# from os.path import isfile, join
 from preprocessing.Preproc_funcs import *
-
-
-# from preprocessing.CVCR_Deconfounding import *
-# from preprocessing.Read_raw_data import read_raw_data
-# from preprocessing.Read_demographic_data import read_dem_data
 
 ###################################################################
 # # Testing if the ridge regression data truly were from HCP or Lea
@@ -24,65 +17,6 @@ from preprocessing.Preproc_funcs import *
 ########################################################
 # # Creating new correlation matrices from HCP time series
 ########################################################
-
-def create_connectivity(dataDir='data/HCP_created_ICA300_timeseries', rho=.5,
-                        saveDir='data/self_created_HCP_mats/ICA300_corr', c_type='corr'):
-    """
-    Script to create correlation matrices from time series data
-    :param c_type: the type of correlation matrix to create
-    :param dataDir: Directory of time series .txt files
-    :param rho: regularization term
-    :param saveDir: Directory to save partial correlation mats
-    :return: matrices that are not positive definite, despite regularization
-    """
-    not_PD = []
-    PD_testy3 = 0
-    all_mat = []
-
-    filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
-    filenames.sort()
-
-    if filenames[0].endswith('.npy'):
-        bigD = np.load(f'{dataDir}/{filenames[0]}')
-        for i, x in enumerate(bigD):
-            if c_type == 'pcorr':
-                testy3 = ICORR(x, RHO=rho)
-            elif c_type == 'corr':
-                testy3 = CORR(x)
-
-            np.fill_diagonal(testy3, 1)
-            all_mat.append(testy3)
-
-            if isPD(testy3):
-                PD_testy3 += 1
-            else:
-                not_PD.append(i)
-                print(f'{x} not PD!')
-
-    elif filenames[0].endswith('.txt'):
-        for i, x in enumerate(filenames):
-            if c_type == 'pcorr':
-                testy3 = ICORR(f'{dataDir}/{x}', RHO=rho)
-            elif c_type == 'corr':
-                testy3 = CORR(f'{dataDir}/{x}')
-
-            np.fill_diagonal(testy3, 1)
-            all_mat.append(testy3)
-
-            if isPD(testy3):
-                PD_testy3 += 1
-            else:
-                not_PD.append(i)
-                print(f'{x} not PD!')
-
-    all_mat = np.array(all_mat)
-    np.save(saveDir, all_mat)
-
-    print(f'{PD_testy3} positive-definite matrices returned in {c_type} calculations...')
-    if c_type == 'pcorr':
-        print(f'rho = {rho}\n')
-
-    return all_mat, not_PD
 
 
 # # Creating correaltion matrices anew

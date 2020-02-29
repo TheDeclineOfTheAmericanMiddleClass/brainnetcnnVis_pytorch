@@ -9,15 +9,6 @@ from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.Load_model_data import *
 
-# # reshape subject's data into vector
-# svmdata = []
-# for i, x in enumerate(cdata):
-#     svmdata.append(np.array(x[np.triu_indices(len(data[0]), k=1)]))
-#
-# shallowX_train = [svmdata[j] for j in list(train_ind)]  # cov matrices for training
-# shallowY_train = [ages[j] for j in list(train_ind)]  # training ages
-# shallowY_test = [ages[j] for j in list(test_ind)]  # test ages
-
 # SETTING UP DATA TO BE TRAINED
 Xtrain_corr = X[train_ind]
 Y_train = Y[train_ind]  # Y_train
@@ -156,16 +147,15 @@ y_fcPred = FC90Net.predict(shallowX_test)
 print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')
 
 
-
-def print_shallow_results():
-    # PRINTING THE SHALLOW RESULTS
-    s_colhs = ['ElasticNet', 'SVM']
-    s_rowhs = ['pearson r', 'mean absolute error']
-    s_tabel = np.array([[f'{elastic_r:.3}, p-value: {elastic_p:.3}',
-                         f'{svm_r:.3}, p-value: {svm_p:.3}'],
-                        [f'{elastic_mae:.3}', f'{svm_mae:.3}']])
-
-    for i, x in enumerate(s_colhs):
-        for j, y in enumerate(s_rowhs):
-            print(f'{x} {y}: {s_tabel[j, i]}')
-        print('')
+# def print_shallow_results():
+#     # PRINTING THE SHALLOW RESULTS
+#     s_colhs = ['ElasticNet', 'SVM']
+#     s_rowhs = ['pearson r', 'mean absolute error']
+#     s_tabel = np.array([[f'{elastic_r:.3}, p-value: {elastic_p:.3}',
+#                          f'{svm_r:.3}, p-value: {svm_p:.3}'],
+#                         [f'{elastic_mae:.3}', f'{svm_mae:.3}']])
+#
+#     for i, x in enumerate(s_colhs):
+#         for j, y in enumerate(s_rowhs):
+#             print(f'{x} {y}: {s_tabel[j, i]}')
+#         print('')

@@ -1,14 +1,8 @@
 import os
 
-import numpy as np
-import pandas as pd
-
-from preprocessing.Analyze_raw_data import PD_transform
-from preprocessing.CVCR_Deconfounding import deconfound_matrix
 from preprocessing.Main_preproc import restricted, behavioral, subnums, cdata
 from preprocessing.Model_DOF import *
-from preprocessing.Preproc_funcs import reshape_deconfounded_matrix, areNotPD
-from preprocessing.Tangent_transform import tangent_transform
+from preprocessing.Preproc_funcs import *
 
 # Parvathy's partitions
 final_test_list = np.loadtxt('Subject_Splits/final_test_list.txt')
@@ -62,23 +56,16 @@ val_ind = np.where(np.isin(subnums, final_val_list))[0]
 print(
     f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets ({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
 
-confounds = [ages, gender, weight, height, sleep_quality, handedness]  # defining confounds
+confounds = [ages, weight, height, sleep_quality, handedness]  # defining confounds
 
 # scaling confounds ONLY according to train set
 if scaled:
-    confounds = [x / np.max(x[train_ind]) for _, x in enumerate(confounds)]
+    confounds = [x / np.max(np.abs(x[train_ind])) for _, x in enumerate(confounds)] # TODO: note this won't make sense for multiclass w/ 3+ classes
 
 # finding indices of patients without confound data
 con_nansubs = []
 for i, x in enumerate(confounds):
     con_nansubs.append(np.where(pd.isnull(x))[0])
-
-
-###############################################################
-# # Deconfounding X and Y for data classes
-###############################################################
-# TODO: Test data is actually deconfounded.
-#  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
 # Setting variable for network to predict
 if predicted_outcome == 'neuro':
@@ -92,53 +79,11 @@ elif predicted_outcome == 'age':
 elif predicted_outcome == 'sex':
     outcome = gender
 
-
-def deconfound_all(data,
-                   tbd_ind,
-                   confounds,
-                   d_ind=train_ind,
-                   outcome=ages):
-    """
-    Takes input of a dataset, its confounds. Deletes samples with nan-valued Y entries.
-     Returns the deconfounded dataset.
-
-    :param outcome: ground truth value to be deconfounded, per Y1
-    :param data: Samples x symmetric matrices (row x column) to be deconfounded, per X1
-    :param confounds: Confounds x samples, to be factored out of cdata
-    :param d_ind: data indices of cdata from which deconfounding parameters will be calculated
-    :return: List of deconfounded X, Y as well as new train-test-validation indices
-    """
-
-    X_corr = []
-    Y_corr = []
-
-    # confound parameter estimation for X
-    C_pi, b_hat_X, nan_ind = deconfound_matrix(data, confounds, set_ind=d_ind)
-
-    # ...and Y
-    Y_c = np.delete(outcome[d_ind], nan_ind, axis=0)  # Y_train with nans removed
-    b_hat_Y = C_pi @ Y_c  # Y_train confound parameter estimation
-
-    # For every set of data to be deconfounded ..
-    # todo: Why not deconfound for all data at once?
-    for i, x in enumerate(tbd_ind):
-        C_tbd = np.vstack(confounds).astype(float).T[tbd_ind[i]]
-        Xtbd_corr = cdata[tbd_ind[i]] - reshape_deconfounded_matrix(C_tbd @ b_hat_X, new_size=len(cdata[0]))
-
-        Y_tbd = outcome[tbd_ind[i]]
-
-        Ytbd_corr = Y_tbd - C_tbd @ b_hat_Y
-
-        # TODO clean up, remove extend
-        X_corr.extend(Xtbd_corr)
-        Y_corr.extend(Ytbd_corr)
-
-    train_ind = np.arange(len(tbd_ind[0]))
-    test_ind = np.arange(len(tbd_ind[1])) + len(tbd_ind[0])
-    val_ind = np.arange(len(tbd_ind[2])) + len(tbd_ind[0]) + len(tbd_ind[1])
-
-    return np.array(X_corr), np.array(Y_corr), train_ind, test_ind, val_ind
-
+###############################################################
+# # Deconfounding X and Y for data classes
+###############################################################
+# TODO: Test data is actually deconfounded.
+#  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
 saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
 saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
@@ -148,7 +93,7 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
     if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it
         print('Loading saved deconfounded matrices ...\n')
         dcdata = np.load(saved_dc_x)
-        train_ind, test_ind, val_ind = np.load(saved_dc_inds, allow_pickle=True)
+        # train_ind, test_ind, val_ind = np.load(saved_dc_inds, allow_pickle=True)
 
         if os.path.isfile(saved_dc_y):
             Y = np.load(saved_dc_y)
@@ -157,17 +102,15 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
 
     else:  # if data hasn't been deconfounded, deconfound it
         print('Deconfounding data ...\n')
-        X_corr, Y_corr, train_ind, test_ind, val_ind = deconfound_all(cdata, [train_ind, test_ind, val_ind],
-                                                                      confounds=confounds, d_ind=train_ind,
-                                                                      outcome=outcome)
-        dcdata = X_corr
-        np.save(saved_dc_x, dcdata)  # saving deconfounded data
-        np.save(saved_dc_inds, np.array(
-            [train_ind, test_ind, val_ind]))  # saving indices for deconfounded data with nan values removed
+        X_corr, Y_corr, nan_ind = deconfound_dataset(cdata, [train_ind, test_ind, val_ind], confounds=confounds,
+                                                     set_ind=train_ind, outcome=outcome)
+
+        dcdata = X_corr  # DeConfounded DATA
+        # np.save(saved_dc_x, dcdata)  # saving deconfounded data
 
         if deconfound_flavor == 'X1Y1':  # load deconfounded Y data
             Y = Y_corr
-            np.save(saved_dc_y, Y)
+            # np.save(saved_dc_y, Y)
 
         elif deconfound_flavor == 'X1Y0':
             Y = outcome
