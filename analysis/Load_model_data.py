@@ -99,22 +99,28 @@ def deconfound_all(data,
                    d_ind=train_ind,
                    outcome=ages):
     """
-    Takes input of a dataset, its confounds, and returns the deconfounded dataset
+    Takes input of a dataset, its confounds. Deletes samples with nan-valued Y entries.
+     Returns the deconfounded dataset.
+
     :param outcome: ground truth value to be deconfounded, per Y1
-    :param cdata: Samples x symmetric matrices (row x column) to be deconfounded, per X1
+    :param data: Samples x symmetric matrices (row x column) to be deconfounded, per X1
     :param confounds: Confounds x samples, to be factored out of cdata
     :param d_ind: data indices of cdata from which deconfounding parameters will be calculated
-    :return: List of deconfounded
+    :return: List of deconfounded X, Y as well as new train-test-validation indices
     """
 
     X_corr = []
     Y_corr = []
 
-    # confound parameter estimation for X and Y
-    _, C_pi, b_hat_X, nan_ind = deconfound_matrix(data, confounds, set_ind=d_ind)
-    Y_c = np.delete(outcome[d_ind], nan_ind, axis=0)  # Y confound
-    b_hat_Y = C_pi @ Y_c  # the confound parameter estimation
+    # confound parameter estimation for X
+    C_pi, b_hat_X, nan_ind = deconfound_matrix(data, confounds, set_ind=d_ind)
 
+    # ...and Y
+    Y_c = np.delete(outcome[d_ind], nan_ind, axis=0)  # Y_train with nans removed
+    b_hat_Y = C_pi @ Y_c  # Y_train confound parameter estimation
+
+    # For every set of data to be deconfounded ..
+    # todo: Why not deconfound for all data at once?
     for i, x in enumerate(tbd_ind):
         C_tbd = np.vstack(confounds).astype(float).T[tbd_ind[i]]
         Xtbd_corr = cdata[tbd_ind[i]] - reshape_deconfounded_matrix(C_tbd @ b_hat_X, new_size=len(cdata[0]))
@@ -123,6 +129,7 @@ def deconfound_all(data,
 
         Ytbd_corr = Y_tbd - C_tbd @ b_hat_Y
 
+        # TODO clean up, remove extend
         X_corr.extend(Xtbd_corr)
         Y_corr.extend(Ytbd_corr)
 

@@ -11,27 +11,32 @@ def deconfound_matrix(est_data, confounds, set_ind=None):
 
     return:
         nan_ind: the indices (out of the set_ind) that have any confound == nan
+        C: the nan-removed confound matrix
+        C_pi: pseudoinverse of confounds
+        b_hatX: deconfounded X
 
     Calculations based off equations (2) - (4):
     https://www.sciencedirect.com/science/article/pii/S1053811918319463?via%3Dihub#sec2
     """
 
-    # reshaping matrix data to array
-    t = []
-    for i, x in enumerate(est_data):
-        t.append(np.array(x[np.triu_indices(len(est_data[0]), k=1)]))
-    est_array = np.array([t[j] for j in list(set_ind)])  # training arrays
+    # vectorizing matrix and subtracting mean
+    t = np.array([x[np.triu_indices(len(x), k=1)] for x in est_data])
+    t -= np.mean(t, axis=0)
+
+    est_array = np.array([t[j] for j in list(set_ind)])  # specifying arrays from which we'll deconfound
 
     # creating confound matrix
-    C = np.vstack(confounds).astype(float).T[set_ind]  # confounds
+    C = np.vstack(confounds).astype(float).T[set_ind]
+
+    # identifying nan values in confounds
+    nan_ind = np.unique(np.argwhere(np.isnan(C)).squeeze())
 
     # deleting samples that have confounds with NaN values
-    nan_ind = np.unique(np.where(np.isnan(C) == True)[0])
     C = np.delete(C, nan_ind, axis=0)
     X = np.delete(est_array, nan_ind, axis=0)
 
     # regressing out confounds
-    C_pi = np.linalg.pinv(C)
+    C_pi = np.linalg.pinv(C)  # moore-penrose pseudoinverse
     b_hatX = C_pi @ X
 
-    return C, C_pi, b_hatX, nan_ind
+    return C_pi, b_hatX, nan_ind
