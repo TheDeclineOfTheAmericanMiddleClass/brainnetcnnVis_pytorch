@@ -1,8 +1,6 @@
 import datetime
-import numpy as np
-import torch
 
-from analysis.Run_Model import *
+from analysis.train_model import *
 
 
 def main():

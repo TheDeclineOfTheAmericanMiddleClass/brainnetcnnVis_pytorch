@@ -2,8 +2,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
-from analysis.Init_model import *
-from preprocessing.Model_DOF import *
+from analysis.init_model import *
 
 allloss_train = []
 allloss_test = []
@@ -13,6 +12,7 @@ allpears_test = []
 allpval_test = []
 
 def main():
+    print('Using data: ', list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)], '\n')
     # initializing weights
     # net.apply(init_weights_he)
 
@@ -77,7 +77,7 @@ def main():
             #     print('pearson R and/or MAE undefined...stopping training')
             #     break
 
-        if multiclass and num_classes == 2:  # for sex, other binary classifications
+        if multiclass:  # for sex, other classifications
             # try:
             acc = accuracy_score(preds, y_true)
             print(f"Test Set, {outcome_names} : Accuracy : {acc:.02}")
@@ -137,6 +137,10 @@ def main():
                 #     print('pearson R and/or MAE undefined...stopping training')
                 #     break
 
+
+if __name__ == "__main__":
+    main()
+
 # Take only values of MAE in epochs before the one that triggered early stopping
 # ... OR if no early stopping, take values that came ep_int epochs before final one
 losses_train = allloss_train[:-ep_int]
@@ -145,15 +149,14 @@ losses_test = allloss_test[:-ep_int]
 if multiclass and num_classes == 2:
     accs_test = allacc_test[:-ep_int]
     final_acc = accs_test[-1]  # TODO: add acc to save and load files
+    # maes_test = pears_test = pvals_test = []
 
 else:
     maes_test = allmae_test[:-ep_int]
     pears_test = allpears_test[:-ep_int]
     pvals_test = allpval_test[:-ep_int]
+    # accs_test = final_acc = []
 
     # the model's final performance
     final_mae = maes_test[-1]
     final_pears = (pears_test[-1], pvals_test[-1])
-
-if __name__ == "__main__":
-    main()

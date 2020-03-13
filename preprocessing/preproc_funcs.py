@@ -1,18 +1,19 @@
 from __future__ import print_function
 
-import numpy
-import numpy as np
-from numpy import linalg as la
-import inspect
-from scipy.linalg import logm, inv
-import h5py
 import glob
+import inspect
 import re
 from os import listdir
 from os.path import isfile, join
-from scipy import io
+
+import h5py
 import matplotlib.pyplot as plt
+import numpy
+import numpy as np
 import pandas as pd
+from numpy import linalg as la
+from scipy import io
+from scipy.linalg import logm, inv
 
 
 # read subjects' demographic data
@@ -99,7 +100,6 @@ def read_raw_data(dataDir, actually_read=True):  # TODO: remove actually_read if
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
         filenames.sort()
-        s = 0  # start index of subject ID in filename
         if actually_read:
 
             if not not glob.glob(f'{dataDir}/{"*.npy"}'):  # if numpy file of consolidated data saved, use that
@@ -246,7 +246,7 @@ def R_transform(data):
     npd_count = 0
     for i, x in enumerate(data):
         rdata[i] = z2r(x)
-        if isPD(rdata[i]) == False:
+        if not isPD(rdata[i]):
             npd_count += 1
     print(f'R_transform returned {npd_count} non-positive definite matrices')
     return rdata
@@ -448,17 +448,18 @@ def partition(restricted, Family_ID):
 
     # subjects whose putative twin is not part of the 1206 released study subjects.
     nsMZ = p5 & set(GTno)  # subjects whose putative MZ twin IS  part of the 1206, but HasGT=FALSE for one of the pair,
-    nsDZ = p6 & set(GTno)  # subjects whose putative DZ twin IS  part of the 1206, but HasGT=FALSE for one or both of the pair
-    noGTTwins = nsMZ|nsDZ
+    nsDZ = p6 & set(
+        GTno)  # subjects whose putative DZ twin IS  part of the 1206, but HasGT=FALSE for one or both of the pair
+    noGTTwins = nsMZ | nsDZ
     assert len(noGTTwins) <= 56, 'More non-singular twins than expected. Should be fewer than 56.'
 
     # Creating full list of non-singular twins (adding genetically confirmed twins)
-    nsTwins = noGTTwins|gcMZTwins|gcDZTwins
+    nsTwins = noGTTwins | gcMZTwins | gcDZTwins
 
     # TODO: figure out if problem in finding twins from nsTwinFams or familymems or Family_ID
     # family IDs of families with self-reported, non-singular twins
     nsTwinfams = list(np.unique(list(Family_ID.iloc[list(nsTwins)])))
-    assert len(nsTwinfams) <= len(nsTwins)/2
+    assert len(nsTwinfams) <= len(nsTwins) / 2
 
     # Sanity check, confirming self-reported but not-genetically confirmed twins are of the same family
     sib1 = int(np.where(Family_ID == nsTwinfams[0])[0][0])
@@ -472,7 +473,7 @@ def partition(restricted, Family_ID):
         familymems = list(np.where(Family_ID == x)[0])  # list indices of all members
         # print(familymems)
         for j, y in enumerate([noGTTwins, gcMZTwins, gcDZTwins]):
-            twins = set(familymems) & y   # find if/which family members are twins...
+            twins = set(familymems) & y  # find if/which family members are twins...
             if len(twins) > 2:  # (if more than two twins, tell us, but still add them all)
                 print(f'family found with {len(twins)} twins')
             elif len(twins) < 2:
@@ -482,7 +483,7 @@ def partition(restricted, Family_ID):
 
     # TODO: Random shuffling of standalone participants and twins into 70-15-15 train-validation-test split
 
-    return #test, train, validation # subject IDs
+    return  # test, train, validation # subject IDs
 
 
 # DIY tangent space transformation
@@ -491,7 +492,7 @@ def tangent_transform(pdmats, ref='euclidean'):
     Takes array of positive definite matrices and returns their projection into tangent space.
     Implementation from dadi et al., 2019. Source: https://hal.inria.fr/hal-01824205v3
     Calculation of reference means from Pervaiz et al., 2019. https://www.biorxiv.org/content/10.1101/741595v2.full.pdf
-    :param data: covariance matrices (samples x rows x columns)
+    :param pdmats: positive definite covariance matrices (samples x rows x columns)
     :param ref: reference mean to use (i.e. euclidean, harmonic, log euclidean, riemannian, kullback)
     :return:
     """
@@ -506,7 +507,7 @@ def tangent_transform(pdmats, ref='euclidean'):
         refMean = 1 / len(pdmats) * np.mean(pdmats, axis=0)
 
     else:
-        raise ValueError(f'Tangent transform not implement for {ref} yet!')
+        raise ValueError(f'Tangent transform not implemented for {ref} yet!')
         return
 
     d, V = np.linalg.eigh(refMean)  # EVD on reference mean covariance matrix
@@ -585,6 +586,7 @@ def create_connectivity(dataDir='data/HCP_created_ICA300_timeseries', rho=.5,
 
     return all_mat, not_PD
 
+
 # get parameters necessary for deconfounding
 def get_confound_parameters(est_data, confounds, set_ind=None):
     """Takes array of square matrices (samples x matrices) and returns confound signals, the parameter.
@@ -622,7 +624,7 @@ def get_confound_parameters(est_data, confounds, set_ind=None):
 
     # regressing out confounds
     C_pi = np.linalg.pinv(C)  # moore-penrose pseudoinverse
-    b_hatX = C_pi @ X   # confound parameter estimate
+    b_hatX = C_pi @ X  # confound parameter estimate
 
     return C_pi, b_hatX, nan_ind
 
@@ -634,7 +636,7 @@ def array2matrix_face900(taskCorr, task, taskdata, r_transform=False, is_task=Tr
     for i in range(taskCorr.shape[1]):  # reshaping array into symmetric matrix
         out = np.zeros((new_size, new_size))
 
-        if is_task == True:  # adding to allow for reshaping of confound-corrected data array
+        if is_task:  # adding to allow for reshaping of confound-corrected data array
             taskind = np.where(np.array(taskdata['SESSIONS']) == task)[0][0]
 
         uinds = np.triu_indices(len(out), k=1)
@@ -649,7 +651,7 @@ def array2matrix_face900(taskCorr, task, taskdata, r_transform=False, is_task=Tr
 
     taskCorrMat = np.array(taskCorrMat)  # setting as array
 
-    if r_transform == True:
+    if r_transform:
         taskCorrMat = R_transform(taskCorrMat)  # transforming to pearson R data
 
     for i, x in enumerate(taskCorrMat):
@@ -662,12 +664,13 @@ def array2matrix_face900(taskCorr, task, taskdata, r_transform=False, is_task=Tr
 
     return taskCorrMat
 
+
 # reshapes array, sets NaNs to zero,
 def array2matrix(samples, mat_size=300):
     """
     :param samples: samples x upper triangular array of a matrix
-    :param new_size: determined size of newly shaped matrix
-    :return: new_size x new_size symmetric matrix
+    :param mat_size: determined size of newly shaped matrix
+    :return: mat_size x mat_size symmetric matrix
     """
     d_mats = []
 
@@ -691,7 +694,7 @@ def array2matrix(samples, mat_size=300):
 
 
 # deconfounding entire dataset from
-def deconfound_dataset(data, tbd_ind, confounds, set_ind, outcome):
+def deconfound_dataset(data, confounds, set_ind, outcome):
     """
     Takes input of a dataset, its confounds. Deletes samples with nan-valued Y entries.
      Returns the deconfounded dataset.
@@ -713,12 +716,12 @@ def deconfound_dataset(data, tbd_ind, confounds, set_ind, outcome):
     # takes all data as an array, removes need for tbd_ind
     C_tbd = np.vstack(confounds).astype(float).T
 
-
     X_corr = data - array2matrix(C_tbd @ b_hat_X, mat_size=data.shape[-1])
     Y_corr = outcome - C_tbd @ b_hat_Y
 
     # TODO: return explained variance from decconfounds
     return np.array(X_corr), np.array(Y_corr), nan_ind
+
 
 # get name of variable as a string
 def retrieve_name(var):

@@ -7,9 +7,9 @@ from sklearn.linear_model import ElasticNet
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
-from analysis.Load_model_data import *
+from analysis.load_model_data import *
 
-# SETTING UP DATA TO BE TRAINED
+# SETTING UP DATA TO BE TRAINED ON
 Xtrain_corr = X[train_ind]
 Y_train = Y[train_ind]  # Y_train
 
@@ -37,26 +37,22 @@ def train_ElasticNet():
     # TODO: implement elastic net cross-validation?
     # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNetCV.html#sklearn.linear_model.ElasticNetCV
 
-    regr = ElasticNet(random_state=1234)
-    # regr = ElasticNet(random_state=1234, l1_ratio=0)  # initializing with default weights
-    # regr = ElasticNet(random_state=1234, l1_ratio=1, precompute=True)
-    # regr = ElasticNet(random_state=1234, l1_ratio=1, normalize=True)
-    # regr = ElasticNet(random_state=1234, l1_ratio=1, precompute=True, normalize=True)
-    # regr = ElasticNet(random_state=1234, l1_ratio=1, precompute=True, normalize=True, selection='random')
-    # regr = ElasticNet(random_state=1234, l1_ratio=.7, precompute=True, normalize=True, selection='random')
+    regr = ElasticNet(random_state=1234)  # NOTE: tried varying l1_ratio, precompute, normalize, selection
 
     regr.fit(shallowX_train, shallowY_train)
     y_elasticPred = regr.predict(shallowX_test)
     print('...training complete!\n')
 
-    # print(regr.coef_)
-    # print(regr.intercept_)
-
     # elasticNet metrics
-    elastic_r, elastic_p = pearsonr(shallowY_test, y_elasticPred)
-    elastic_mae = mae(shallowY_test, y_elasticPred)
+    if multiclass:
+        acc = accuracy_score(np.round(y_elasticPred), shallowY_test)
+        return acc, regr
 
-    return elastic_r, elastic_p, elastic_mae, regr
+    else:
+        elastic_r, elastic_p = pearsonr(shallowY_test, y_elasticPred)
+        elastic_mae = mae(shallowY_test, y_elasticPred)
+
+        return [elastic_r, elastic_p, elastic_mae], regr
 
 
 # elastic_r, elastic_p, elastic_mae, trained_elastic = train_ElasticNet()
@@ -70,7 +66,7 @@ from sklearn import svm
 def train_SVM():
     print('Training SVM...')
 
-    if not multi_outcome:
+    if not multi_outcome or not multiclass:
         clf = svm.SVC(kernel='linear', gamma='scale', verbose=True)
         clf.fit(shallowX_train, shallowY_train)
 
@@ -80,10 +76,12 @@ def train_SVM():
         svm_mae = mae(shallowY_test, y_svmPred)
         print('...training complete!\n')
 
+        return [svm_r, svm_p, svm_mae], clf
+
     else:
         svm_r = svm_p = svm_mae = np.nan
-
-    return svm_r, svm_p, svm_mae, clf
+        print('ERROR: SVM cannot make multi-outcome or multi-class predictions !')
+        return
 
 
 # svm_r, svm_p, svm_mae, trained_svm = train_SVM()
@@ -129,7 +127,8 @@ def train_FC90net():
                                            random_state=1234)
 
     FC90Net.fit(shallowX_train, shallowY_train)
-    print(f"time elapsed: {time.time() - start_time:.2f}s")
+
+    y_fcPred = FC90Net.predict(shallowX_test)
 
     if multiclass:
         fc_metrics = accuracy_score(shallowY_test, y_fcPred)
@@ -141,21 +140,14 @@ def train_FC90net():
 
     return fc_metrics, FC90Net
 
-start_time = time.time()
-fc_metrics, FC90Net = train_FC90net()
-y_fcPred = FC90Net.predict(shallowX_test)
-print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')
 
+if multiclass:
+    start_time = time.time()
+    ENet_metrics, ENet = train_ElasticNet()
+    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
+    print(f'ElasticNet **{predicted_outcome}** test accuracy: {ENet_metrics * 100:.4} %')
 
-# def print_shallow_results():
-#     # PRINTING THE SHALLOW RESULTS
-#     s_colhs = ['ElasticNet', 'SVM']
-#     s_rowhs = ['pearson r', 'mean absolute error']
-#     s_tabel = np.array([[f'{elastic_r:.3}, p-value: {elastic_p:.3}',
-#                          f'{svm_r:.3}, p-value: {svm_p:.3}'],
-#                         [f'{elastic_mae:.3}', f'{svm_mae:.3}']])
-#
-#     for i, x in enumerate(s_colhs):
-#         for j, y in enumerate(s_rowhs):
-#             print(f'{x} {y}: {s_tabel[j, i]}')
-#         print('')
+    start_time = time.time()
+    fc_metrics, FC90Net = train_FC90net()
+    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
+    print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')

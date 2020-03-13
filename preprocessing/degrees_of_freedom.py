@@ -13,15 +13,16 @@ dataDirs = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',  # 
             }
 
 # Degrees of freedom in the model input/output
-dataDir = dataDirs['HCP_rsfc_pCorr01_300']  # Choosing data directory for training
+dataDir = dataDirs['Adu_rsfc_pCorr01_300']  # Choosing data directory for training
 predicted_outcome = 'sex'  # 'neuro', 'age', 'sex', 'allFFI', 'open'
+one_hot = False  # if False, 1-dim vector returned. if True, num_classes-dim one-hot encoded vectors returned
 # multi_input = False  # TODO: implement multiple input matrices
 data_to_use = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
-tan_mean = 'euclidean'  # euclidean, harmonic # TODO: implement log euclidean, riemannian, kullback
-deconfound_flavor = 'X1Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0'
+tan_mean = 'euclidean'  # euclidean, harmonic # TODO: implement tangent transform only over training matrices
+deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0'
 # confounds = None # ages, weight, height, sleep_quality, handedness  # TODO: implement choice of confounds here
 scaled = False  # whether confound are scaled by confound's max value in training set
-architecture = 'yeo'  # 'yeo', 'kawahara', 'usama', 'parvathy' # TODO: implement kawahara
+architecture = 'parvathy_orig'  # 'yeo', 'kawahara', 'usama', 'parvathy_orig', 'parvathy_v2' # TODO: implement kawahara
 
 # Setting hyper parameters for training
 momentum = 0.9  # momentum
@@ -29,7 +30,7 @@ lr = .00001  # learning rate, changed from 0.00001 on 2.24.20
 wd = .0005
 
 # setting how many epochs the network is trained
-nbepochs = 300  # number of epochs to run
+nbepochs = 50  # number of epochs to run
 early = False  # early stopping?
 ep_int = 10  # early stopping interval
 min_ep = 30  # minimum epochs after which to check for stagnation in learning
@@ -72,5 +73,3 @@ if scaled:
     scl = '_scaled'
 else:
     scl = ''
-
-

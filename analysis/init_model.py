@@ -1,10 +1,8 @@
-import torch
 import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
-from analysis.Define_model import *
-from preprocessing.Main_preproc import use_cuda, multi_outcome, lr, momentum, wd, predicted_outcome, architecture, \
-    multiclass, num_classes
+from analysis.define_models import *
+from preprocessing.read_data import *
 
 # Defining train, test, validation sets
 trainset = HCPDataset(mode="train")
@@ -16,11 +14,18 @@ valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, nu
 
 # Creating the model
 if predicted_outcome == 'sex' and architecture == 'yeo':
-    net = YeoSex_BrainNetCNN(trainset.X)
-elif predicted_outcome == 'sex' and architecture == 'parvathy':
-    net = ParvathySex_BrainNetCNN(trainset.X)
+    net = YeoSex_BNCNN(trainset.X)
+elif predicted_outcome == 'sex' and architecture == 'parvathy_v2':
+    net = ParvathySex_BNCNN_v2byAdu(trainset.X)
+elif predicted_outcome == 'sex' and architecture == 'parvathy_orig':
+    # e2e = 16
+    # e2n = 128
+    # n2g = 26
+    # f_size = trainset.X.shape[3]
+    # dropout = 0.6
+    net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
 else:
-    net = BrainNetCNN(trainset.X)
+    net = BNCNN(trainset.X)
 
 # Putting the model on the GPU
 if use_cuda:
@@ -28,18 +33,23 @@ if use_cuda:
     cudnn.benchmark = True
 
 # check if model parameters are on GPU or no
-next(net.parameters()).is_cuda
+assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
 optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+# optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=wd)
 
-if multiclass and num_classes == 2:
+if multiclass and num_classes <= 2:
     y_unique = trainset.Y.unique(sorted=True)
-    y_unique_count = torch.stack([trainset.Y[:, i].sum() for i, y_u in enumerate(y_unique)]) / trainset.Y.__len__()
+    y_unique_count = torch.stack([trainset.Y.T[i].sum() for i in range(len(y_unique))]) / trainset.Y.__len__()
     y_unique_count = y_unique_count.float().cuda()
-    criterion = torch.nn.BCELoss(weight=y_unique_count)  # Binary Cross Entropy as loss function
+
+    if one_hot:
+        criterion = torch.nn.BCELoss(weight=y_unique_count)  # balanced Binary Cross Entropy as loss function
+    else:
+        criterion = torch.nn.BCELoss()
 
 else:
-    criterion = torch.nn.MSELoss()  # shows loss for each outcome
+    criterion = torch.nn.MSELoss().cuda()  # shows loss for each outcome
 
 
 def train():  # training in mini batches
@@ -56,7 +66,6 @@ def train():  # training in mini batches
                 # print('target left alone...')
                 inputs, targets = inputs.cuda(), targets.cuda()
 
-
         optimizer.zero_grad()
 
         outputs = net(inputs)
@@ -65,7 +74,7 @@ def train():  # training in mini batches
 
         targets = targets.view(outputs.size())
         # print(outputs.shape, targets.shape)
-        loss = criterion(outputs, targets)
+        loss = criterion(input=outputs, target=targets)
 
         loss.backward()
         optimizer.step()
@@ -76,7 +85,6 @@ def train():  # training in mini batches
             print('Training loss: %.6f' % (running_loss / 10))
             running_loss = 0.0
         _, predicted = torch.max(outputs.data, 1, keepdim=True)
-
 
     return running_loss / batch_idx
 
@@ -107,13 +115,12 @@ def test():
 
             targets = targets.view(outputs.size())
             # print(outputs.shape, targets.shape)
-            loss = criterion(outputs, targets)
+            loss = criterion(input=outputs, target=targets)
 
             test_loss += loss.data.mean(0)  # only predicting 1 feature
 
             preds.append(outputs.data.cpu().numpy())
             ytrue.append(targets.data.cpu().numpy())
-
 
         running_loss += loss.data.mean(0)  # only predicting 1 feature
 

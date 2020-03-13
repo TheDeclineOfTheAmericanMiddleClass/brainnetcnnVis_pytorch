@@ -1,7 +1,7 @@
 import torch
 
-from preprocessing.Model_DOF import *
-from preprocessing.Preproc_funcs import *
+from preprocessing.degrees_of_freedom import *
+from preprocessing.preproc_funcs import *
 
 # # Everything to be put on a GPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

@@ -1,5 +1,3 @@
-from preprocessing.Preproc_funcs import *
-
 ###################################################################
 # # Testing if the ridge regression data truly were from HCP or Lea
 ###################################################################
@@ -80,10 +78,10 @@ from preprocessing.Preproc_funcs import *
 # # Consolidating each face task into .txt files
 #################################################
 
-from os import listdir
-import gzip
 import shutil
 import zipfile
+from os import listdir
+
 import nibabel as nib
 
 # Identifiying face task .zips

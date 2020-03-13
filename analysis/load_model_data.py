@@ -68,6 +68,12 @@ con_nansubs = []
 for i, x in enumerate(confounds):
     con_nansubs.append(np.where(pd.isnull(x))[0])
 
+###############################################################
+# # Deconfounding X and Y for data classes
+###############################################################
+# TODO: Test data is actually deconfounded.
+#  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
+
 # Setting variable for network to predict
 if predicted_outcome == 'neuro':
     outcome = ffi_N
