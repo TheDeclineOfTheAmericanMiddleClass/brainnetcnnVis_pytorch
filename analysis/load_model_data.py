@@ -1,8 +1,8 @@
 import os
 
-from preprocessing.Main_preproc import restricted, behavioral, subnums, cdata
-from preprocessing.Model_DOF import *
-from preprocessing.Preproc_funcs import *
+from preprocessing.degrees_of_freedom import *
+from preprocessing.preproc_funcs import *
+from preprocessing.read_data import restricted, behavioral, subnums, cdata
 
 # Parvathy's partitions
 final_test_list = np.loadtxt('Subject_Splits/final_test_list.txt')
@@ -17,6 +17,13 @@ final_val_list = np.loadtxt('Subject_Splits/final_val_list.txt')
 # Info for all subjects (age, family number, subjectID)
 Family_ID = restricted['Family_ID']  # for partitioning
 Subject = np.array(restricted['Subject'])
+
+# Age, Sex, and Confound info
+weight = np.array(restricted['Weight'])
+height = np.array(restricted['Height'])
+sleep_quality = np.array(behavioral['PSQI_Score'])  # larger score indicates worse quality of sleep
+handedness = np.array(restricted['Handedness'])  # larger score indicates worse quality of sleep
+gender = np.array(behavioral['Gender'])
 ages = np.array(restricted['Age_in_Yrs'])
 
 # Personality info
@@ -26,7 +33,7 @@ ffi_E = np.array(behavioral['NEOFAC_E'])
 ffi_A = np.array(behavioral['NEOFAC_A'])
 ffi_N = np.array(behavioral['NEOFAC_N'])
 
-# # finding indices of patients without FFI data
+# Finding indices of patients without FFI data
 ffi_labels = ['O', 'C', 'E', 'A', 'N']
 ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
 ffi_nansubs = []
@@ -35,18 +42,12 @@ for i, x in enumerate(ffis):
 ffi_nansubs = np.unique(ffi_nansubs)
 ffis = np.array(ffis).T
 
-# Confound info
-weight = np.array(restricted['Weight'])
-height = np.array(restricted['Height'])
-sleep_quality = np.array(behavioral['PSQI_Score'])  # larger score indicates worse quality of sleep
-handedness = np.array(restricted['Handedness'])  # larger score indicates worse quality of sleep
-gender = np.array(behavioral['Gender'])
-
-# transforming gender to dummy variables
-dummyv = [-1, 1]  # dummy variables
+# transforming 'gender' to dummy variables
+dummyv = [0, 1]  # dummy variables
 for i, x in enumerate(np.unique(gender)):  # quantifying gender
     gen = np.where(gender == x)[0]
     gender[gen] = dummyv[i]
+
 
 ## Defining train, test, validaton sets
 # 70-15-15 train test validation split
@@ -87,7 +88,6 @@ elif predicted_outcome == 'sex':
 
 saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
 saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
-saved_dc_inds = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_inds.npy'
 
 if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
     if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it
@@ -102,7 +102,7 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
 
     else:  # if data hasn't been deconfounded, deconfound it
         print('Deconfounding data ...\n')
-        X_corr, Y_corr, nan_ind = deconfound_dataset(cdata, [train_ind, test_ind, val_ind], confounds=confounds,
+        X_corr, Y_corr, nan_ind = deconfound_dataset(data=cdata, confounds=confounds,
                                                      set_ind=train_ind, outcome=outcome)
 
         dcdata = X_corr  # DeConfounded DATA
@@ -119,17 +119,20 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
 
 elif deconfound_flavor == 'X0Y0':  # no changes to X data
     Y = outcome
+    # np.save(saved_dc_x, cdata)
+    # np.save(saved_dc_y, Y)
 
 ##########################################
 ## Setting up multiclass classification ##
 ##########################################
 
-if multiclass:  # Sets multiclass targets to binary data
+if multiclass and one_hot:  # Sets multiclass outcome as one-hot encoded targets
     Y_classes = np.zeros((Y.squeeze().shape[0], len(np.unique(Y))))
     for i, x in enumerate(np.unique(Y)):
         Y_classes[[np.where(Y == x)[0]], i] = 1
     Y = Y_classes
 
+Y = Y.astype(float)  # ensuring Y is not of type object
 ###################################################################
 # # Projecting matrices into positive definite
 ###################################################################
@@ -182,7 +185,11 @@ elif data_to_use == 'positive definite':
     X = pddata
     del (cdata, pddata)
 
-
+# # exporting outcome as .xlsx file for parvathy's code
+# import pandas as pd
+# df = pd.DataFrame({'Subject': Subject.astype(int), 'Gender':Y[:,0]})
+# filepath = f'parvathy/Code/Data_labels/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.xlsx'
+# df.to_excel(filepath, index=False)
 
 ############################################################################################
 # # TODO: implement shrinking of tangent space data, ?implement optimal shrinkage parameter
