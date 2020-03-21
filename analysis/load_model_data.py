@@ -36,10 +36,11 @@ ffi_N = np.array(behavioral['NEOFAC_N'])
 # Finding indices of patients without FFI data
 ffi_labels = ['O', 'C', 'E', 'A', 'N']
 ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
+
 ffi_nansubs = []
 for i, x in enumerate(ffis):
     ffi_nansubs.append(np.where(np.isnan(x))[0])
-ffi_nansubs = np.unique(ffi_nansubs)
+ffi_nansubs = np.unique(ffi_nansubs)  # TODO: delete if nothing is being calculated
 ffis = np.array(ffis).T
 
 # transforming 'gender' to dummy variables
@@ -48,20 +49,24 @@ for i, x in enumerate(np.unique(gender)):  # quantifying gender
     gen = np.where(gender == x)[0]
     gender[gen] = dummyv[i]
 
-
 ## Defining train, test, validaton sets
 # 70-15-15 train test validation split
 train_ind = np.where(np.isin(subnums, final_train_list))[0]
+# final_train_list.sort()
+# assert np.all(subnums[train_ind] == final_train_list)
 test_ind = np.where(np.isin(subnums, final_test_list))[0]
 val_ind = np.where(np.isin(subnums, final_val_list))[0]
-print(
-    f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets ({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
 
-confounds = [ages, weight, height, sleep_quality, handedness]  # defining confounds
+print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets '
+      f'({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
+
+# defining confounds
+confounds = [ages, weight, height, sleep_quality, handedness]
 
 # scaling confounds ONLY according to train set
 if scaled:
-    confounds = [x / np.max(np.abs(x[train_ind])) for _, x in enumerate(confounds)] # TODO: note this won't make sense for multiclass w/ 3+ classes
+    confounds = [x / np.max(np.abs(x[train_ind])) for _, x in
+                 enumerate(confounds)]  # TODO: note this won't make sense for multiclass w/ 3+ classes
 
 # finding indices of patients without confound data
 con_nansubs = []
@@ -92,8 +97,10 @@ elif predicted_outcome == 'sex':
 # TODO: Test data is actually deconfounded.
 #  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
-saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
-saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
+saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}' \
+             f'{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
+saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}' \
+             f'{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
 
 if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
     if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it

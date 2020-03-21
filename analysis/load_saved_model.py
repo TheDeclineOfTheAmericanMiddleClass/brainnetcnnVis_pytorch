@@ -1,6 +1,5 @@
 import numpy as np
 
-
 losses_train = []
 losses_test = []
 accs_test = []
@@ -13,7 +12,7 @@ def main():
     # Adjust to load desired model
     loadpath = input('Filepath of model/stats (without _model.pt or _stats.npz) : ')
 
-    # model = torch.load(f'loadpath}_model.pt')
+    # model = torch.load(f'{loadpath}_model.pt')
     # model.eval()
 
     modelnpz = np.load(f'{loadpath}_stats.npz', allow_pickle=True)

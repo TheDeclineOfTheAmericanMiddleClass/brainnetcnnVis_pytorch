@@ -18,11 +18,6 @@ if predicted_outcome == 'sex' and architecture == 'yeo':
 elif predicted_outcome == 'sex' and architecture == 'parvathy_v2':
     net = ParvathySex_BNCNN_v2byAdu(trainset.X)
 elif predicted_outcome == 'sex' and architecture == 'parvathy_orig':
-    # e2e = 16
-    # e2n = 128
-    # n2g = 26
-    # f_size = trainset.X.shape[3]
-    # dropout = 0.6
     net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
 else:
     net = BNCNN(trainset.X)
@@ -35,21 +30,22 @@ if use_cuda:
 # check if model parameters are on GPU or no
 assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
-optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
-# optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=wd)
+# optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=wd)
 
 if multiclass and num_classes <= 2:
-    y_unique = trainset.Y.unique(sorted=True)
-    y_unique_count = torch.stack([trainset.Y.T[i].sum() for i in range(len(y_unique))]) / trainset.Y.__len__()
-    y_unique_count = y_unique_count.float().cuda()
+    y_unique = trainset.Y.unique(sorted=True).numpy()
+    y_propor = (torch.stack([trainset.Y.T[i].sum() for i in range(len(y_unique))]) / trainset.Y.__len__()).numpy()
+    y_propor = dict((int(key), y_propor[int(key)]) for key in y_unique)
 
     if one_hot:
-        criterion = torch.nn.BCELoss(weight=y_unique_count)  # balanced Binary Cross Entropy as loss function
+        criterion = nn.BCELoss().cuda(device)  # balanced Binary Cross Entropy as loss function
     else:
-        criterion = torch.nn.BCELoss()
+        # criterion = torch.nn.BCELoss().cuda(device)
+        criterion = nn.CrossEntropyLoss().cuda(device)
 
 else:
-    criterion = torch.nn.MSELoss().cuda()  # shows loss for each outcome
+    criterion = torch.nn.MSELoss().cuda(device)  # shows loss for each outcome
 
 
 def train():  # training in mini batches
@@ -69,12 +65,20 @@ def train():  # training in mini batches
         optimizer.zero_grad()
 
         outputs = net(inputs)
-        if multiclass and num_classes == 2:
-            outputs = torch.round(outputs)
+
+        # TODO: remove all traces of rounding before loss is calcualted
+        # if multiclass and num_classes == 2:
+        #     outputs = torch.round(outputs)
 
         targets = targets.view(outputs.size())
-        # print(outputs.shape, targets.shape)
-        loss = criterion(input=outputs, target=targets)
+
+        try:
+            loss = criterion(input=outputs, target=targets)
+        except RuntimeError:
+            if multiclass:
+                loss = criterion(input=torch.argmax(outputs.data, 1),
+                                 target=torch.argmax(targets.data, 1),
+                                 weight=[y_propor[x] for x in targets])
 
         loss.backward()
         optimizer.step()
@@ -110,12 +114,19 @@ def test():
 
             outputs = net(inputs)
 
-            if multiclass and num_classes == 2:  # for binary classification
-                outputs = torch.round(outputs)
+            # TODO: remove all traces of rounding before loss is calcualted
+            # if multiclass and num_classes == 2:  # for binary classification
+            #     outputs = torch.round(outputs)
 
             targets = targets.view(outputs.size())
-            # print(outputs.shape, targets.shape)
-            loss = criterion(input=outputs, target=targets)
+
+            try:
+                loss = criterion(input=outputs, target=targets)
+            except RuntimeError:
+                if multiclass:
+                    loss = criterion(input=torch.argmax(outputs.data, 1),
+                                     target=torch.argmax(targets.data, 1),
+                                     weight=[y_propor[x] for x in targets])
 
             test_loss += loss.data.mean(0)  # only predicting 1 feature
 
@@ -137,7 +148,7 @@ def test():
         return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
 
 
-# TODO: inspect why only the first dense layer dims are used for weight intiialization
+# Following function are only applied to linear layers
 def init_weights_he(m):
     """ Weights initialization for the dense layers using He Uniform initialization
      He et al., http://arxiv.org/abs/1502.01852

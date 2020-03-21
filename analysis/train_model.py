@@ -13,11 +13,12 @@ allpval_test = []
 
 def main():
     print('Using data: ', list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)], '\n')
-    # initializing weights
+
+    # # initializing weights
     # net.apply(init_weights_he)
 
     # initial prediction from starting weights
-    preds, y_true, loss_val = test()  # TODO: figure out how to constrain sex prediction to two classes
+    preds, y_true, loss_val = test()
 
     # try:
     if multi_outcome:
@@ -30,6 +31,7 @@ def main():
 
     # except RuntimeError or ValueError:
     if multiclass:  # for sex, etc.
+        preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
         acc_1 = accuracy_score(preds, y_true)
         print("Init Network")
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
@@ -78,7 +80,7 @@ def main():
             #     break
 
         if multiclass:  # for sex, other classifications
-            # try:
+            preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
             acc = accuracy_score(preds, y_true)
             print(f"Test Set, {outcome_names} : Accuracy : {acc:.02}")
             allacc_test.append(acc)
@@ -149,13 +151,13 @@ losses_test = allloss_test[:-ep_int]
 if multiclass and num_classes == 2:
     accs_test = allacc_test[:-ep_int]
     final_acc = accs_test[-1]  # TODO: add acc to save and load files
-    # maes_test = pears_test = pvals_test = []
+    maes_test = pears_test = pvals_test = []
 
 else:
     maes_test = allmae_test[:-ep_int]
     pears_test = allpears_test[:-ep_int]
     pvals_test = allpval_test[:-ep_int]
-    # accs_test = final_acc = []
+    accs_test = final_acc = []
 
     # the model's final performance
     final_mae = maes_test[-1]

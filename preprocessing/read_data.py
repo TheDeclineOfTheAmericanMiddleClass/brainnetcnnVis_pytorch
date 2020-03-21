@@ -21,23 +21,23 @@ else:  # read in the resting-state connectivity data
     cdata, subnums = read_raw_data(dataDir, actually_read=True)
 
 # TODO: implement better handling of subject with Nan-valued data
-# Rudimentary handling of subjects with NaN values in FFI and confounds
-nan_subs = []
-if len(cdata) == 1003:
-    # assuming deconfounding with weight, delete subject with no weight measurement
-    if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
-        no_WHSubs = [510]  # subject without weight/height
-        nan_subs.extend(no_WHSubs)
-
-    # If predicting any FFI outcome and 1003 subjects in dataset, delete subjects with no FFI scores
-    if np.any(np.isin(['allFFI', 'neuro', 'open'], predicted_outcome)) and len(cdata) == 1003:
-        no_FFISubs = [47, 80, 88, 225, 841, 922]  # subjects without FFI scores
-        nan_subs.extend(no_FFISubs)
-
-# removing undesirable subjects
-subnums = np.delete(subnums, nan_subs, axis=0)
-if not cdata == []:
-    cdata = np.delete(cdata, nan_subs, axis=0)
+# # Rudimentary handling of subjects with NaN values in FFI and confounds
+# nan_subs = []
+# if len(cdata) == 1003:
+#     # assuming deconfounding with weight, delete subject with no weight measurement
+#     if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':
+#         no_WHSubs = [510]  # subject without weight/height
+#         nan_subs.extend(no_WHSubs)
+#
+#     # If predicting any FFI outcome and 1003 subjects in dataset, delete subjects with no FFI scores
+#     if np.any(np.isin(['allFFI', 'neuro', 'open'], predicted_outcome)) and len(cdata) == 1003:
+#         no_FFISubs = [47, 80, 88, 225, 841, 922]  # subjects without FFI scores
+#         nan_subs.extend(no_FFISubs)
+#
+# # removing undesirable subjects
+# subnums = np.delete(subnums, nan_subs, axis=0)
+# if not cdata == []:
+#     cdata = np.delete(cdata, nan_subs, axis=0)
 
 # Read in demographic data, based on subjects given task
 restricted, behavioral = read_dem_data(subnums)

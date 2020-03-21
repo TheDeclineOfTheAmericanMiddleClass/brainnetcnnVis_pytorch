@@ -12,7 +12,7 @@ class HCPDataset(torch.utils.data.Dataset):
         """
         Args:
             directory (string): Path to the dataset.
-            mode (str): train = 90% Train, validation=10% Train, train+validation=100% train else test.
+            mode (str): train = 75% Train, validation=15% Train, train+validation=100% train else test.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
@@ -153,8 +153,6 @@ class ParvathySex_BNCNN_original(nn.Module):
         x = self.dropout(x)
         x = x.view(-1, self.n2g_filter)
         x = self.fc(self.BatchNorm(x))
-        x = torch.sigmoid(x)  # adding sigmoid for binary sex
-        x = torch.round(x)
 
         return x
 

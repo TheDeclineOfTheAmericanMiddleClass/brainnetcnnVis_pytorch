@@ -5,7 +5,7 @@ from preprocessing.degrees_of_freedom import *
 
 
 # TODO: edit plot_model_results to accommodate multiple outcomes
-def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpears_test=[],
+def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpears_test=[], allacc_test=[],
                        deconfound_flavor='', scl='', predicted_outcome='', outcome_names=[],
                        arc='', input_data='', transformations='', ep_int=666, es=True):
     # defining location of all plots and titles
@@ -32,7 +32,11 @@ def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpea
     # Plotting for BrainNetCNN
     ylabs = ['Training MSE', 'Test MSE', 'Prediction (MAE)', 'Prediction (Pearson r)']
 
-    plotties = [np.array(x) for i, x in enumerate([allloss_train, allloss_test, allmae_test, allpears_test])]
+    if multiclass:
+        plotties = [np.array(x) for i, x in enumerate([allloss_train, allloss_test, allacc_test])]
+    else:
+        plotties = [np.array(x) for i, x in enumerate([allloss_train, allloss_test, allmae_test, allpears_test])]
+
     plotties = [plotties[i].astype(float) for i, p in enumerate(plotties)]
 
     # setting colors for plots
@@ -40,7 +44,7 @@ def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpea
 
     # TODO: check dimensionality of sex accuracy, add clause here if necessary
     if not multi_outcome:
-        for i in range(4):
+        for i in range(len(plotties)):
             if i < 3:  # for test and training MSE
                 axs[i].plot(np.log10(plotties[i]), color=plt.cm.cool(color_idx[i]))
                 axs[i].plot(np.repeat(np.log10(plotties[i])[-1], len(plotties[i])),
@@ -130,6 +134,7 @@ plot_model_results(allloss_train=losses_train,
                    allloss_test=losses_test,
                    allmae_test=maes_test,
                    allpears_test=pears_test,
+                   allacc_test=accs_test,
                    arc=architecture,
                    predicted_outcome=predicted_outcome,
                    outcome_names=outcome_names,
