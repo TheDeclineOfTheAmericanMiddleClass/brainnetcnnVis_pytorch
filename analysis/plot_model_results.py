@@ -5,6 +5,11 @@ from preprocessing.degrees_of_freedom import *
 
 
 # TODO: edit plot_model_results to accommodate multiple outcomes
+# make one subplot for each non-nan metric
+# for all sets, plot data with label, add legend
+# suptitle as below
+# performance[:performance['stop_int'].values].loc[dict(metrics=['loss','accuracy'])]
+
 def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpears_test=[], allacc_test=[],
                        deconfound_flavor='', scl='', predicted_outcome='', outcome_names=[],
                        arc='', input_data='', transformations='', ep_int=666, es=True):

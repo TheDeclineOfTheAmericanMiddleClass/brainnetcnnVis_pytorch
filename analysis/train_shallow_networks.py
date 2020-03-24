@@ -3,7 +3,7 @@ import time
 from scipy.stats import pearsonr
 from sklearn import neural_network
 # from preprocessing.Model_DOF import
-from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import MultiTaskElasticNetCV
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
@@ -32,20 +32,25 @@ shallowY_test = np.array(list(Y_test))
 #########################
 
 def train_ElasticNet():
-    print('Training ElasticNet...')
+    print('Training MultiTaskElasticNetCV...')
 
     # TODO: implement elastic net cross-validation?
     # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNetCV.html#sklearn.linear_model.ElasticNetCV
 
-    regr = ElasticNet(random_state=1234)  # NOTE: tried varying l1_ratio, precompute, normalize, selection
+    # if multiclass:
+    regr = MultiTaskElasticNetCV(cv=3,
+                                 random_state=1234)  # NOTE: tried varying l1_ratio, precompute, normalize, selection
+    # else:
+    #     regr = ElasticNetCV(cv=3, random_state=1234)
 
     regr.fit(shallowX_train, shallowY_train)
     y_elasticPred = regr.predict(shallowX_test)
+    print(y_elasticPred.shape)
     print('...training complete!\n')
 
     # elasticNet metrics
     if multiclass:
-        acc = accuracy_score(np.round(y_elasticPred), shallowY_test)
+        acc = accuracy_score(np.argmax(y_elasticPred, 1), np.argmax(shallowY_test, 1))
         return acc, regr
 
     else:
@@ -111,8 +116,13 @@ def train_FC90net():
     from sklearn.model_selection import KFold
     kf = KFold(n_splits=10)
 
+    if multi_outcome:
+        fl = num_outcome
+    elif multiclass:
+        fl = num_classes
+
     # NOTE: dropout no possible for sklearn MLP
-    FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=(3, 2),
+    FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=(3, fl),
                                            # age (9, 1), sex (3, 2), ? (shallowX_train.shape[-1], 90)
                                            max_iter=500,
                                            solver='sgd',
@@ -142,6 +152,17 @@ def train_FC90net():
 
 
 if multiclass:
+    start_time = time.time()
+    ENet_metrics, ENet = train_ElasticNet()
+    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
+    print(f'ElasticNet **{predicted_outcome}** test accuracy: {ENet_metrics * 100:.4} %')
+
+    start_time = time.time()
+    fc_metrics, FC90Net = train_FC90net()
+    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
+    print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')
+
+if multi_outcome:
     start_time = time.time()
     ENet_metrics, ENet = train_ElasticNet()
     print(f"\ntime elapsed: {time.time() - start_time:.2f}s")

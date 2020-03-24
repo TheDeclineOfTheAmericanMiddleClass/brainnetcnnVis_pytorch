@@ -21,7 +21,7 @@ else:  # read in the resting-state connectivity data
     cdata, subnums = read_raw_data(dataDir, actually_read=True)
 
 # TODO: implement better handling of subject with Nan-valued data
-# # Rudimentary handling of subjects with NaN values in FFI and confounds
+# Rudimentary handling of subjects with NaN values in FFI and confounds
 # nan_subs = []
 # if len(cdata) == 1003:
 #     # assuming deconfounding with weight, delete subject with no weight measurement

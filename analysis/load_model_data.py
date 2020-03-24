@@ -52,8 +52,6 @@ for i, x in enumerate(np.unique(gender)):  # quantifying gender
 ## Defining train, test, validaton sets
 # 70-15-15 train test validation split
 train_ind = np.where(np.isin(subnums, final_train_list))[0]
-# final_train_list.sort()
-# assert np.all(subnums[train_ind] == final_train_list)
 test_ind = np.where(np.isin(subnums, final_test_list))[0]
 val_ind = np.where(np.isin(subnums, final_val_list))[0]
 
@@ -119,11 +117,11 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
                                                      set_ind=train_ind, outcome=outcome)
 
         dcdata = X_corr  # DeConfounded DATA
-        # np.save(saved_dc_x, dcdata)  # saving deconfounded data
+        np.save(saved_dc_x, dcdata)  # saving deconfounded data
 
         if deconfound_flavor == 'X1Y1':  # load deconfounded Y data
             Y = Y_corr
-            # np.save(saved_dc_y, Y)
+            np.save(saved_dc_y, Y)
 
         elif deconfound_flavor == 'X1Y0':
             Y = outcome
@@ -182,7 +180,7 @@ if data_to_use == 'tangent':
         tdata = np.load(saved_tan)
     else:
         print('Transforming all matrices into tangent space ...')
-        tdata = tangent_transform(pddata, ref=tan_mean)
+        tdata = tangent_transform(pddata[train_ind], pddata, ref=tan_mean)
         np.save(saved_tan, tdata)
 
 ####################################

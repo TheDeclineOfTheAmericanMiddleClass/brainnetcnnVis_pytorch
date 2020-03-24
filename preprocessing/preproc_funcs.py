@@ -148,7 +148,6 @@ def read_raw_data(dataDir, actually_read=True):  # TODO: remove actually_read if
         for i, filename in enumerate(filenames):  # reading in subnums
             if filename.endswith(".txt") or filename.endswith(".mat"):
                 num = re.findall(r'\d+', filename)  # find digits in filenames
-                # print(num)
                 subnums.append(num)
 
     subnums.sort()
@@ -407,6 +406,7 @@ def check_symmetric(a, rtol=1e-05, atol=1e-08):
     return np.allclose(a, a.T, rtol=rtol, atol=atol)
 
 
+# TODO: finish implementation of twins
 # partition dataset so twins are not separated between test-train-validation sets
 def partition(restricted, Family_ID):
     '''Partitioning data so one families twins remain in test/validation/training sets'''
@@ -487,24 +487,26 @@ def partition(restricted, Family_ID):
 
 
 # DIY tangent space transformation
-def tangent_transform(pdmats, ref='euclidean'):
+def tangent_transform(refmats, projectmats, ref='euclidean'):
     """
-    Takes array of positive definite matrices and returns their projection into tangent space.
+    Projects array of matrices (projectmats) into tangent space, using the mean of another array (refmats) as reference.
     Implementation from dadi et al., 2019. Source: https://hal.inria.fr/hal-01824205v3
     Calculation of reference means from Pervaiz et al., 2019. https://www.biorxiv.org/content/10.1101/741595v2.full.pdf
-    :param pdmats: positive definite covariance matrices (samples x rows x columns)
+
+    :param projectmats: positive definite matrices to be projected into tangent space
+    :param refmats: positive definite covariance matrices (samples x rows x columns), from which mean is calculated
     :param ref: reference mean to use (i.e. euclidean, harmonic, log euclidean, riemannian, kullback)
-    :return:
+    :return: tangent-projected matrices
     """
     if ref == 'harmonic':  # use harmonic mean
         Ch = 0
-        for i, x in enumerate(pdmats):
+        for i, x in enumerate(refmats):
             Ch += inv(x)
-        Ch *= 1 / len(pdmats)
+        Ch *= 1 / len(refmats)
         refMean = inv(Ch)
 
     elif ref == 'euclidean':  # use euclidean mean
-        refMean = 1 / len(pdmats) * np.mean(pdmats, axis=0)
+        refMean = 1 / len(refmats) * np.mean(refmats, axis=0)
 
     else:
         raise ValueError(f'Tangent transform not implemented for {ref} yet!')
@@ -512,13 +514,13 @@ def tangent_transform(pdmats, ref='euclidean'):
 
     d, V = np.linalg.eigh(refMean)  # EVD on reference mean covariance matrix
     fudge = 1E-18  # ensures our eigenvectors don't explode
-
     wsStar = V.T @ np.diag(1 / np.sqrt(d + fudge)) @ V
+    mag = len(projectmats[1])  # matrix length magnitude
 
-    tmats = np.zeros_like(pdmats)
-    for i, x in enumerate(pdmats):
+    tmats = np.zeros_like(projectmats)
+    for i, x in enumerate(projectmats):
         m = np.dot(wsStar, x).dot(wsStar)
-        m = m.reshape(len(pdmats[1]), len(pdmats[1]))
+        m = m.reshape(mag, mag)
         if i % 199 == 0:
             print(f'Projecting {i}/{len(tmats)} matrices into tangent space...')
         tmats[i] = logm(m)
@@ -543,6 +545,7 @@ def create_connectivity(dataDir='data/HCP_created_ICA300_timeseries', rho=.5,
 
     filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
     filenames.sort()
+    print(filenames)
 
     if filenames[0].endswith('.npy'):
         bigD = np.load(f'{dataDir}/{filenames[0]}')

@@ -1,15 +1,25 @@
+import xarray as xr
 from scipy.stats import pearsonr
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.init_model import *
 
-allloss_train = []
-allloss_test = []
-allacc_test = []
-allmae_test = []
-allpears_test = []
-allpval_test = []
+# setting up xarray to hold performance metrics
+sets = ['train', 'test']
+metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
+alloc_data = np.zeros((nbepochs, len(sets), len(metrics), num_outcome))
+alloc_data[:] = np.nan
+
+global performance
+
+if multi_outcome:
+    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, outcome_names],
+                               dims=['epoch', 'set', 'metrics', 'outcome'])
+else:
+    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, [outcome_names]],
+                               dims=['epoch', 'set', 'metrics', 'outcome'])
+
 
 def main():
     print('Using data: ', list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)], '\n')
@@ -18,10 +28,9 @@ def main():
     # net.apply(init_weights_he)
 
     # initial prediction from starting weights
-    preds, y_true, loss_val = test()
+    preds, y_true, loss_test = test()
 
-    # try:
-    if multi_outcome:
+    if multi_outcome:  # calculate predictive performance of multiple variables
         mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
         pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
         print("Init Network")
@@ -29,16 +38,14 @@ def main():
             print(
                 f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
 
-    # except RuntimeError or ValueError:
-    if multiclass:  # for sex, etc.
+    if multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
         acc_1 = accuracy_score(preds, y_true)
         print("Init Network")
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
 
 
-    else:
-        # prediction of 1 variable
+    else:  # calculate predictive performance of 1 variable
         mae_1 = mae(preds[:, 0], y_true[:, 0])
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
         print("Init Network")
@@ -49,116 +56,95 @@ def main():
     # # Run Epochs of training and testing
     ######################################
 
+    global epoch
 
     for epoch in range(nbepochs):
 
-        loss_train = train()
-        allloss_train.append(loss_train)
+        trainp, trainy, loss_train = train()
+        preds, y_true, loss_test = test()
 
-        preds, y_true, loss_val = test()
-        allloss_test.append(loss_val)
+        performance.loc[dict(epoch=epoch, set="test", metrics='loss')] = [loss_test]
+        performance.loc[dict(epoch=epoch, set="train", metrics='loss')] = [loss_train]
 
         print("\nEpoch %d" % epoch)
 
         if multi_outcome:
-            # try:
-            mae_all = np.array(
-                [mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])  # num_outcomes-sized array
-            pears_all = np.array(
-                [list(pearsonr(y_true[:, i], preds[:, i])) for i in
-                 range(len(outcome_names))])  # 2 x num_outcomes-sized array
+            mae_all, trainmae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))]), \
+                                    np.array([mae(trainy[:, i], trainp[:, i]) for i in range(len(outcome_names))])
+            pears_all, trainpears_all = np.array(
+                [list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))]), \
+                                        np.array([list(pearsonr(trainy[:, i], trainp[:, i])) for i in
+                                                  range(len(outcome_names))])
+
             for i in range(len(outcome_names)):
                 print(
-                    f"Test Set, {outcome_names[i]} : MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")  # deleted 100 * factors
+                    f"{outcome_names[i]} : Test MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02} (p = {pears_all[i, 1]:.02})")
 
-            allmae_test.append(list(mae_all))
-            allpears_test.append(list(pears_all[:, 0]))
-            allpval_test.append(list(pears_all[:, 1]))
+            performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = [mae_all,
+                                                                                                      pears_all[:, 0],
+                                                                                                      pears_all[:, 1]]
+            performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'])] = [trainmae_all,
+                                                                                                       trainpears_all[:,
+                                                                                                       0],
+                                                                                                       trainpears_all[:,
+                                                                                                       1]]
+        if multiclass:
+            preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
+                                            np.argmax(trainp, 1), np.argmax(trainy, 1)
+            acc, trainacc = accuracy_score(preds, y_true), accuracy_score(trainp, trainy)
 
-            # except ValueError:
-            #     print('pearson R and/or MAE undefined...stopping training')
-            #     break
+            print(f"{outcome_names}, Test accuracy : {acc:.02}")
 
-        if multiclass:  # for sex, other classifications
-            preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
-            acc = accuracy_score(preds, y_true)
-            print(f"Test Set, {outcome_names} : Accuracy : {acc:.02}")
-            allacc_test.append(acc)
-
-            # except ValueError:
-            #     print('Accuracy broken...stopping training')
-            #     break
+            performance.loc[dict(epoch=epoch, set="test", metrics=['accuracy'])] = acc
+            performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'])] = trainacc
 
         else:
-            # try:
-            mae_1 = mae(preds, y_true)
-            pears_1 = pearsonr(preds[:, 0], y_true[:, 0])  # NOTE: pearsonr only takes 1-dim arrays
-            print(f"Test Set, {outcome_names} : MAE : {mae_1:.02}, pearson R: {pears_1[0]:.02}, p = {pears_1[1]:.04}")
+            mae_1, trainmae_1 = mae(preds, y_true), mae(trainp, trainy)
+            pears_1, trainpears_1 = pearsonr(preds[:, 0], y_true[:, 0]), pearsonr(trainp[:, 0], trainy[:, 0])
+            print(f"{outcome_names} : Test MAE : {mae_1:.02}, Test pearson R: {pears_1[0]:.02} (p = {pears_1[1]:.04})")
 
-            allmae_test.append(mae_1)
-            allpears_test.append(pears_1[0])
-            allpval_test.append(pears_1[1])
-
-            # except ValueError:
-            #     print('pearson R and/or MAE undefined...stopping training')
-            #     break
+            performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = [mae_1,
+                                                                                                      pears_1[0],
+                                                                                                      pears_1[1]]
+            performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'])] = [trainmae_1,
+                                                                                                       trainpears_1[0],
+                                                                                                       trainpears_1[1]]
 
         ####################
         ## EARLY STOPPING ##
         ####################
-        # Checking every ep_int epochs. If there is no improvement on avg MAE or Pearson r, stop training
+        # Checking every ep_int epochs. If there is no improvement on performance metrics, stop training
         if (epoch > min_ep) and early:
             if multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
-                majority = int(np.ceil(len(allmae_test[epoch]) / 2))
+                majority = int(np.ceil(num_outcome / 2))
 
-                # try: # ...to assess MAE and pearson R
-                stagnant_mae = (np.nanmean(allmae_test[epoch - ep_int:-1], axis=0) <= allmae_test[
-                    epoch]).sum() >= majority
-                stagnant_r = (np.nanmean(np.abs(allpears_test[epoch - ep_int:-1]), axis=0) <= np.abs(
-                    allpears_test[epoch])).sum() >= majority
+                stagnant_mae = (np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='MAE')],
+                                           axis=0) <=
+                                performance[epoch].loc[dict(set='test', metrics='MAE')]).sum() >= majority
+
+                stagnant_r = (np.nanmean(
+                    np.abs(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='pearsonR')]), axis=0) <=
+                              np.abs(performance[epoch].loc[dict(set='test', metrics='pearsonR')])).sum() >= majority
+
                 if stagnant_mae and stagnant_r:
                     break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
-                # except ValueError:
-                #     print('pearson R and/or MAE undefined...stopping training')
-                #     break
 
-            elif multiclass:  # mae here actually accuracy
-                # try:
-                if np.nanmean(allacc_test[epoch - ep_int:-1]) <= allacc_test[epoch]:
+            elif multiclass:
+                if np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='accuracy')]
+                              <= performance[epoch].loc[dict(set='test', metrics='accuracy')]):
                     break
-                # except ValueError:
-                #     print(' Accuracy broken...stopping training')
-                #     break
             else:
-                # try:
-                stagnant_mae = np.nanmean(allmae_test[epoch - ep_int:-1], axis=0) <= allmae_test[epoch]
-                stagnant_r = np.nanmean(allpears_test[epoch - ep_int:-1], axis=0) <= allpears_test[epoch]
+                stagnant_mae = np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='MAE')],
+                                          axis=0) <= performance[epoch].loc[dict(set='test', metrics='MAE')]
+                stagnant_r = np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='pearsonR')],
+                                        axis=0) <= performance[epoch].loc[dict(set='test', metrics='pearsonR')]
                 if stagnant_mae and stagnant_r:
                     break
-                # except ValueError or RuntimeWarning:
-                #     print('pearson R and/or MAE undefined...stopping training')
-                #     break
 
 
 if __name__ == "__main__":
     main()
 
-# Take only values of MAE in epochs before the one that triggered early stopping
-# ... OR if no early stopping, take values that came ep_int epochs before final one
-losses_train = allloss_train[:-ep_int]
-losses_test = allloss_test[:-ep_int]
-
-if multiclass and num_classes == 2:
-    accs_test = allacc_test[:-ep_int]
-    final_acc = accs_test[-1]  # TODO: add acc to save and load files
-    maes_test = pears_test = pvals_test = []
-
-else:
-    maes_test = allmae_test[:-ep_int]
-    pears_test = allpears_test[:-ep_int]
-    pvals_test = allpval_test[:-ep_int]
-    accs_test = final_acc = []
-
-    # the model's final performance
-    final_mae = maes_test[-1]
-    final_pears = (pears_test[-1], pvals_test[-1])
+# adding stop epoch to xarray
+performance = performance.assign_coords(stop_int=epoch - ep_int)
+performance = performance.expand_dims('stop_int')

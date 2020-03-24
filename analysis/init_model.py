@@ -13,14 +13,19 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, n
 valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
 
 # Creating the model
-if predicted_outcome == 'sex' and architecture == 'yeo':
+if predicted_outcome == 'sex' and architecture == 'yeo_sex':
     net = YeoSex_BNCNN(trainset.X)
 elif predicted_outcome == 'sex' and architecture == 'parvathy_v2':
     net = ParvathySex_BNCNN_v2byAdu(trainset.X)
-elif predicted_outcome == 'sex' and architecture == 'parvathy_orig':
-    net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
+# elif predicted_outcome == 'sex' and architecture == 'parvathy_orig':
+#     net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
+elif architecture == 'kawahara':
+    net = Kawahara_BNCNN(trainset.X)
+elif architecture == 'usama':
+    net = Usama_BNCNN(trainset.X)
 else:
-    net = BNCNN(trainset.X)
+    print(f'{architecture} architecture not available. Using default \'usama\' architecture.')
+    net = Usama_BNCNN(trainset.X)
 
 # Putting the model on the GPU
 if use_cuda:
@@ -52,6 +57,9 @@ def train():  # training in mini batches
     net.train()
     running_loss = 0.0
 
+    preds = []
+    ytrue = []
+
     for batch_idx, (inputs, targets) in enumerate(trainloader):
 
         if use_cuda:
@@ -65,11 +73,6 @@ def train():  # training in mini batches
         optimizer.zero_grad()
 
         outputs = net(inputs)
-
-        # TODO: remove all traces of rounding before loss is calcualted
-        # if multiclass and num_classes == 2:
-        #     outputs = torch.round(outputs)
-
         targets = targets.view(outputs.size())
 
         try:
@@ -85,27 +88,33 @@ def train():  # training in mini batches
 
         running_loss += loss.data.mean(0)  # only predicting 1 feature
 
+        preds.append(outputs.data.cpu().numpy())
+        ytrue.append(targets.data.cpu().numpy())
+
         if batch_idx % 10 == 9:  # print every 10 mini-batches
             print('Training loss: %.6f' % (running_loss / 10))
             running_loss = 0.0
         _, predicted = torch.max(outputs.data, 1, keepdim=True)
 
-    return running_loss / batch_idx
+    # return running_loss / batch_idx
 
+    if not multi_outcome or multiclass:
+        # print('y_true left well enough alone...')
+        return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
+    else:
+        # print('squeezing y_true...')
+        return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
 
 def test():
     global loss
     net.eval()
     test_loss = 0
-    correct = 0
-    total = 0
     running_loss = 0.0
 
     preds = []
     ytrue = []
 
     for batch_idx, (inputs, targets) in enumerate(testloader):
-
         if use_cuda:
             if not multi_outcome and not multiclass:
                 inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
@@ -113,11 +122,6 @@ def test():
                 inputs, targets = inputs.cuda(), targets.cuda()
 
             outputs = net(inputs)
-
-            # TODO: remove all traces of rounding before loss is calcualted
-            # if multiclass and num_classes == 2:  # for binary classification
-            #     outputs = torch.round(outputs)
-
             targets = targets.view(outputs.size())
 
             try:

@@ -117,51 +117,52 @@ class Node2Graph(nn.Module):
         return self.conv(x)
 
 
-# Parvathy's self-written script
-class ParvathySex_BNCNN_original(nn.Module):
-    def __init__(self, e2e, e2n, n2g, f_size, dropout):
-        super(ParvathySex_BNCNN_original, self).__init__()
-        self.n2g_filter = n2g
-        self.e2e = Edge2Edge(1, f_size, e2e)
-        self.e2n = Edge2Node(e2e, f_size, e2n)
-        self.dropout = nn.Dropout(p=dropout)
-        self.n2g = Node2Graph(e2n, f_size, n2g)
-
-        if one_hot:
-            self.fc = nn.Linear(n2g, num_classes)
-        else:
-            self.fc = nn.Linear(n2g, 1)
-        self.BatchNorm = nn.BatchNorm1d(n2g)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                init.xavier_uniform_(m.weight)
-            elif isinstance(m, nn.Conv1d):
-                init.xavier_uniform_(m.weight)
-            elif isinstance(m, nn.BatchNorm1d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                init.xavier_uniform_(m.weight)
-
-    def forward(self, x):
-        x = self.e2e(x)
-        x = self.dropout(x)
-        x = self.e2n(x)
-        x = self.dropout(x)
-        x = self.n2g(x)
-        x = self.dropout(x)
-        x = x.view(-1, self.n2g_filter)
-        x = self.fc(self.BatchNorm(x))
-
-        return x
-
+# # Parvathy's self-written script
+# class ParvathySex_BNCNN_original(nn.Module):
+#     def __init__(self, e2e, e2n, n2g, f_size, dropout):
+#         super(ParvathySex_BNCNN_original, self).__init__()
+#         print('\nInitializing BNCNN: Parvathy_Sex Original Architecture')
+#         self.n2g_filter = n2g
+#         self.e2e = Edge2Edge(1, f_size, e2e)
+#         self.e2n = Edge2Node(e2e, f_size, e2n)
+#         self.dropout = nn.Dropout(p=dropout)
+#         self.n2g = Node2Graph(e2n, f_size, n2g)
+#
+#         if one_hot:
+#             self.fc = nn.Linear(n2g, num_classes)
+#         else:
+#             self.fc = nn.Linear(n2g, 1)
+#         self.BatchNorm = nn.BatchNorm1d(n2g)
+#
+#         for m in self.modules():
+#             if isinstance(m, nn.Conv2d):
+#                 init.xavier_uniform_(m.weight)
+#             elif isinstance(m, nn.Conv1d):
+#                 init.xavier_uniform_(m.weight)
+#             elif isinstance(m, nn.BatchNorm1d):
+#                 m.weight.data.fill_(1)
+#                 m.bias.data.zero_()
+#             elif isinstance(m, nn.Linear):
+#                 init.xavier_uniform_(m.weight)
+#
+#     def forward(self, x):
+#         x = self.e2e(x)
+#         x = self.dropout(x)
+#         x = self.e2n(x)
+#         x = self.dropout(x)
+#         x = self.n2g(x)
+#         x = self.dropout(x)
+#         x = x.view(-1, self.n2g_filter)
+#         x = self.fc(self.BatchNorm(x))
+#
+#         return x
+#
 
 # Adu's self-written script, using parameters of Parvathy's netowkr
 class ParvathySex_BNCNN_v2byAdu(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(ParvathySex_BNCNN_v2byAdu, self).__init__()
-        print('\nInitializing BNCNN: Parvathy_Sex Architecture')
+        print('\nInitializing BNCNN: Parvathy_Sex_v2 Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
@@ -233,8 +234,7 @@ class YeoSex_BNCNN(torch.nn.Module):
         out = F.dropout(self.E2N(out), p=0.463)
         out = F.dropout(self.N2G(out), p=0.463)
         out = out.view(out.size(0), -1)
-        out = self.dense1(out)
-        out = torch.sigmoid(out)  # adding sigmoid for binary sex
+        out = torch.sigmoid(self.dense1(out))
 
         return out
 
@@ -252,10 +252,10 @@ class YeoSex_BNCNN(torch.nn.Module):
     #     return torch.tensor(ans)
 
 
-# BrainNetCNN Network
-class BNCNN(torch.nn.Module):
+# Usama Pervaiz's BrainNetCNN Network
+class Usama_BNCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
-        super(BNCNN, self).__init__()
+        super(Usama_BNCNN, self).__init__()
         print('\nInitializing BNCNN: Usama Architecture')
         self.in_planes = example.size(1)
         self.d = example.size(3)
@@ -266,7 +266,10 @@ class BNCNN(torch.nn.Module):
         self.N2G = torch.nn.Conv2d(1, 256, (self.d, 1))
         self.dense1 = torch.nn.Linear(256, 128)  # init
         self.dense2 = torch.nn.Linear(128, 30)
-        self.dense3 = torch.nn.Linear(30, num_outcome)
+        if multiclass:
+            self.dense3 = torch.nn.Linear(30, num_classes)
+        else:
+            self.dense3 = torch.nn.Linear(30, num_outcome)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -283,6 +286,59 @@ class BNCNN(torch.nn.Module):
         out = out.view(out.size(0), -1)
         out = F.dropout(F.relu(self.dense1(out)), p=0.5)
         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+        if predicted_outcome == 'sex':
+            out = torch.sigmoid(self.dense3(out))
+        else:
+            out = F.relu(self.dense3(out))
+
+        return out
+
+
+# Kawahara Pervaiz's BrainNetCNN Network
+class Kawahara_BNCNN(torch.nn.Module):
+    def __init__(self, example):  # removed num_classes=10
+        super(Kawahara_BNCNN, self).__init__()
+        print('\nInitializing BNCNN: Kawahara Architecture')
+        self.in_planes = example.size(1)
+        self.d = example.size(3)
+
+        self.e2econv1 = E2EBlock(1, 32, example, bias=True)
+        self.e2econv2 = E2EBlock(32, 32, example, bias=True)
+        self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
+        self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))
+        self.dense1 = torch.nn.Linear(256, 128)
+        self.dense2 = torch.nn.Linear(128, 30)
+        self.batchnorm = torch.nn.BatchNorm1d(30)
+        self.dense3 = torch.nn.Linear(30, num_outcome)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    # # forward from paper figure 1.
+    # def forward(self, x):
+    #     out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
+    #     out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
+    #     out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+    #     out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+    #     out = out.view(out.size(0), -1)
+    #     out = F.dropout(F.relu(self.dense1(out)), p=0.5)
+    #     out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+    #     out = F.relu(self.dense3(out))
+
+    # forward from section 2.3 description
+    def forward(self, x):
+        out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
+        out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
+        out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+        out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+        out = out.view(out.size(0), -1)
+        out = F.relu(self.dense1(out))
+        out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+        # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
         out = F.relu(self.dense3(out))
 
         return out
