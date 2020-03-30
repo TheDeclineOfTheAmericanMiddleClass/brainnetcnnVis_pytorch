@@ -66,7 +66,7 @@ def read_face900_data():
 
 
 # read connectivity matrices from .txt, .npy, .mat files
-def read_raw_data(dataDir, actually_read=True):  # TODO: remove actually_read if it serves no purpose
+def read_mat_data(dataDir):  # TODO: remove actually_read if it serves no purpose
     data = []  # Allocating list for connectivity matrices
     subnums = []  # subject IDs
 
@@ -88,55 +88,59 @@ def read_raw_data(dataDir, actually_read=True):  # TODO: remove actually_read if
                 filtnames.sort()
                 filenames.extend(filtnames)  # add them to list for later
 
-                if actually_read:
-                    # Reading in data from all 1003 subjects
-                    for _, file in enumerate(filtnames):
-                        n1 = io.loadmat(f'{eb}/{subdir}/{file}')['mat']
-                        data.append(n1)
+                # Reading in data from all 1003 subjects
+                for _, file in enumerate(filtnames):
+                    n1 = io.loadmat(f'{eb}/{subdir}/{file}')['mat']
+                    data.append(n1)
 
-                        sn = re.findall(r'\d+', file)[-1][-6:]  # subject ID
-                        subnums.append(sn)
+                    sn = re.findall(r'\d+', file)[-1][-6:]  # subject ID
+                    subnums.append(sn)
+
+    elif dataDir == 'data/cfHCP900_FSL_GM':
+        taskIDs, taskCorr, taskNames, taskdata = read_face900_data()
+        toi = 'tfMRI_EMOTION'  # task of interest
+        data = array2matrix_face900(taskCorr, toi, taskdata, r_transform=False)
+        subnums = taskIDs
 
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
         filenames.sort()
-        if actually_read:
 
-            if not not glob.glob(f'{dataDir}/{"*.npy"}'):  # if numpy file of consolidated data saved, use that
-                for file in glob.glob(f'{dataDir}/{"*.npy"}'):
-                    data = list(np.load(file))
+        if not not glob.glob(f'{dataDir}/{"*.npy"}'):  # if numpy file of consolidated data saved, use that
+            for file in glob.glob(f'{dataDir}/{"*.npy"}'):
+                data = list(np.load(file))
 
-            elif not not glob.glob(f'{dataDir}/{"*.txt"}'):  # otherwise use .txt files
-                for file in glob.glob(f'{dataDir}/{"*.txt"}'):
-                    data.append(np.loadtxt(file))
+        elif not not glob.glob(f'{dataDir}/{"*.txt"}'):  # otherwise use .txt files
+            for file in glob.glob(f'{dataDir}/{"*.txt"}'):
+                data.append(np.loadtxt(file))
 
-            elif not not glob.glob(f'{dataDir}/{"*.mat"}'):  # otherwise use .h5py  (aka .mat) files
-                for file in glob.glob(f'{dataDir}/{"*.mat"}'):
-                    hf = h5py.File(file, 'r')
+        elif not not glob.glob(f'{dataDir}/{"*.mat"}'):  # otherwise use .h5py  (aka .mat) files
+            for file in glob.glob(f'{dataDir}/{"*.mat"}'):
+                hf = h5py.File(file, 'r')
 
-                    if np.any(np.isin(list(hf.keys()), "CorrMatrix")):  # HCP ICA300 ridge data
-                        n1 = np.array(hf["CorrMatrix"][:])
+                if np.any(np.isin(list(hf.keys()), "CorrMatrix")):  # HCP ICA300 ridge data
+                    n1 = np.array(hf["CorrMatrix"][:])
 
-                    elif np.any(np.isin(list(hf.keys()), "CORR")):  # Lea's HCP face data
-                        n1 = np.array(hf["CORR"][:])
-                        sn = np.array(hf['IDS'][:]).astype(int)
-                        subnums.append(sn)  # taking subnums from file
+                elif np.any(np.isin(list(hf.keys()), "CORR")):  # Lea's HCP face data
+                    n1 = np.array(hf["CORR"][:])
+                    sn = np.array(hf['IDS'][:]).astype(int)
+                    subnums.append(sn)  # taking subnums from file
 
-                    data.append(n1)
+                data.append(n1)
 
-            # for i, filename in enumerate(filenames):
-            #     if filenames[0].endswith('.npy'):  # for .npy files, given priority
-            #         data = list(np.load(f'{dataDir}/{filename}'))
-            #
-            #     elif filenames[0].endswith('.txt'):  # for .txt file
-            #         # with open(f'{dataDir}/{filename}', 'rb') as f:
-            #         #     tf = f.read().decode(errors='replace')
-            #         tf = np.loadtxt(f'{dataDir}/{filename}')
-            #         data.append(tf)
-            #     else:  # for .h5py files
-            #         hf = h5py.File(f'{dataDir}/{filename}', 'r')
-            #         n1 = np.array(hf["CorrMatrix"][:])
-            #         data.append(n1)
+        # for i, filename in enumerate(filenames):
+        #     if filenames[0].endswith('.npy'):  # for .npy files, given priority
+        #         data = list(np.load(f'{dataDir}/{filename}'))
+        #
+        #     elif filenames[0].endswith('.txt'):  # for .txt file
+        #         # with open(f'{dataDir}/{filename}', 'rb') as f:
+        #         #     tf = f.read().decode(errors='replace')
+        #         tf = np.loadtxt(f'{dataDir}/{filename}')
+        #         data.append(tf)
+        #     else:  # for .h5py files
+        #         hf = h5py.File(f'{dataDir}/{filename}', 'r')
+        #         n1 = np.array(hf["CorrMatrix"][:])
+        #         data.append(n1)
 
     # # for netmats1.txt processing...
     # # changing filenames for 1003 subject numbers to readable
@@ -153,19 +157,15 @@ def read_raw_data(dataDir, actually_read=True):  # TODO: remove actually_read if
     subnums.sort()
     subnums = np.array(subnums).astype(float).squeeze()  # necessary for comparison to train-test-split partitions
 
-    if actually_read:
-        # Data as a numpy array
-        data = np.array(data)
-    else:
-        data = []
+    data = np.array(data)
 
-    print('Raw data processed...\n')
+    print(f'{dataDir} Matrix data read in...\n')
 
     return data, subnums
 
 
 # tests random matrices in loaded data for positive definiteness and size
-def test_raw_data(data, nMat=1):
+def test_mat_data(data, nMat=1):
     print('Running positive definite test...\n...')
     # Testing arbitrarily chosen matrices for positive definiteness
     testind = np.random.randint(0, len(data), nMat)
@@ -186,7 +186,7 @@ def test_raw_data(data, nMat=1):
 
 
 # plots loaded in data for qualitative examination
-def plot_raw_data(data, dataDir, nMat=1):
+def plot_mat_data(data, dataDir, nMat=1):
     '''Takes input of data matrices and name of directory, and number of matrices to test.'''
 
     testmat = np.random.randint(0, len(data), nMat)  # arbitrary subjects matrices

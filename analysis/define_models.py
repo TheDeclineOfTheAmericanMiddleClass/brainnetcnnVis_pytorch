@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 import torch.utils.data.dataset
+import xarray as xr
 
 from analysis.load_model_data import *
 
@@ -22,22 +23,37 @@ class HCPDataset(torch.utils.data.Dataset):
         # X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
 
         if self.mode == "train":
-            x = X[train_ind]
-            y = Y[train_ind]  # Y_train
+            if multi_input:
+                x = np.array(xr.merge(
+                    [X[var[1]].isel(dict(subject=train_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
+            else:
+                x = X[train_ind]
+            y = Y[train_ind]
 
         elif self.mode == "test":
-            x = X[test_ind]
-            y = Y[test_ind]  # Y_test
+            if multi_input:
+                x = np.array(xr.merge(
+                    [X[var[1]].isel(dict(subject=test_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
+            else:
+                x = X[test_ind]
+            y = Y[test_ind]
 
         elif mode == "valid":
-            x = X[val_ind]
+            if multi_input:
+                x = np.array(
+                    xr.merge(
+                        [X[var[1]].isel(dict(subject=val_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
+            else:
+                x = X[val_ind]
             y = Y[val_ind]
 
-        else:
-            x = X
-            y = Y
-
-        self.X = torch.FloatTensor(np.expand_dims(x, 1))  # removed .astype(np.float64)
+        if multi_input:
+            self.X = torch.FloatTensor(x)
+        if not multi_input:
+            self.X = torch.FloatTensor(np.expand_dims(x, 1))  # removed .astype(np.float64)
         self.Y = torch.FloatTensor(y)
 
         print(self.mode, self.X.shape, (self.Y.shape))
@@ -166,7 +182,7 @@ class ParvathySex_BNCNN_v2byAdu(torch.nn.Module):
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
-        self.e2econv1 = E2EBlock(1, 16, example, bias=True)  # TODO: change initial dim for multilayer
+        self.e2econv1 = E2EBlock(example.size(1), 16, example, bias=True)
         self.E2N = torch.nn.Conv2d(16, 128, (1, self.d))
         self.N2G = torch.nn.Conv2d(128, 26, (self.d, 1))
         if one_hot:
@@ -212,7 +228,7 @@ class YeoSex_BNCNN(torch.nn.Module):
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
-        self.e2econv1 = E2EBlock(1, 38, example, bias=True)  # TODO: change initial dim for multilayer
+        self.e2econv1 = E2EBlock(example.size(1), 38, example, bias=True)
         self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
         self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
         if one_hot:
@@ -260,7 +276,7 @@ class Usama_BNCNN(torch.nn.Module):
         self.in_planes = example.size(1)
         self.d = example.size(3)
 
-        self.e2econv1 = E2EBlock(1, 32, example, bias=True)  # TODO: change initial dim for multilayer
+        self.e2econv1 = E2EBlock(example.size(1), 32, example, bias=True)
         self.e2econv2 = E2EBlock(32, 64, example, bias=True)
         self.E2N = torch.nn.Conv2d(64, 1, (1, self.d))
         self.N2G = torch.nn.Conv2d(1, 256, (self.d, 1))
@@ -294,7 +310,7 @@ class Usama_BNCNN(torch.nn.Module):
         return out
 
 
-# Kawahara Pervaiz's BrainNetCNN Network
+# Kawahara's BrainNetCNN Network
 class Kawahara_BNCNN(torch.nn.Module):
     def __init__(self, example):  # removed num_classes=10
         super(Kawahara_BNCNN, self).__init__()
@@ -303,6 +319,56 @@ class Kawahara_BNCNN(torch.nn.Module):
         self.d = example.size(3)
 
         self.e2econv1 = E2EBlock(1, 32, example, bias=True)
+        self.e2econv2 = E2EBlock(32, 32, example, bias=True)
+        self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
+        self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))
+        self.dense1 = torch.nn.Linear(256, 128)
+        self.dense2 = torch.nn.Linear(128, 30)
+        self.batchnorm = torch.nn.BatchNorm1d(30)
+        self.dense3 = torch.nn.Linear(30, num_outcome)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    # # forward from paper figure 1.
+    # def forward(self, x):
+    #     out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
+    #     out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
+    #     out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+    #     out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+    #     out = out.view(out.size(0), -1)
+    #     out = F.dropout(F.relu(self.dense1(out)), p=0.5)
+    #     out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+    #     out = F.relu(self.dense3(out))
+
+    # forward from section 2.3 description
+    def forward(self, x):
+        out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
+        out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
+        out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+        out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+        out = out.view(out.size(0), -1)
+        out = F.relu(self.dense1(out))
+        out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+        # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
+        out = F.relu(self.dense3(out))
+
+        return out
+
+
+# Kawahara Pervaiz's BrainNetCNN Network
+class MultiInput_BNCNN(torch.nn.Module):
+    def __init__(self, example):  # removed num_classes=10
+        super(MultiInput_BNCNN, self).__init__()
+        print('\nInitializing BNCNN: MultiInput, Kawahara Architecture')
+        self.in_planes = example.size(1)
+        self.d = example.size(3)
+
+        self.e2econv1 = E2EBlock(example.size(1), 32, example, bias=True)  # TODO: 2 inputs! Done! ?Must be same size?
         self.e2econv2 = E2EBlock(32, 32, example, bias=True)
         self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
         self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))

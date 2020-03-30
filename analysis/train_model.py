@@ -1,4 +1,3 @@
-import xarray as xr
 from scipy.stats import pearsonr
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
@@ -22,7 +21,7 @@ else:
 
 
 def main():
-    print('Using data: ', list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)], '\n')
+    print('Using data: ', chosen_dir, '\n')
 
     # # initializing weights
     # net.apply(init_weights_he)
@@ -38,14 +37,14 @@ def main():
             print(
                 f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
 
-    if multiclass:  # calculate classification performance
+    elif multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
         acc_1 = accuracy_score(preds, y_true)
         print("Init Network")
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
 
 
-    else:  # calculate predictive performance of 1 variable
+    elif not multiclass and not multi_outcome:  # calculate predictive performance of 1 variable
         mae_1 = mae(preds[:, 0], y_true[:, 0])
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
         print("Init Network")
@@ -88,7 +87,7 @@ def main():
                                                                                                        0],
                                                                                                        trainpears_all[:,
                                                                                                        1]]
-        if multiclass:
+        elif multiclass:
             preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
             acc, trainacc = accuracy_score(preds, y_true), accuracy_score(trainp, trainy)
@@ -98,7 +97,7 @@ def main():
             performance.loc[dict(epoch=epoch, set="test", metrics=['accuracy'])] = acc
             performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'])] = trainacc
 
-        else:
+        elif not multi_outcome and not multiclass:
             mae_1, trainmae_1 = mae(preds, y_true), mae(trainp, trainy)
             pears_1, trainpears_1 = pearsonr(preds[:, 0], y_true[:, 0]), pearsonr(trainp[:, 0], trainy[:, 0])
             print(f"{outcome_names} : Test MAE : {mae_1:.02}, Test pearson R: {pears_1[0]:.02} (p = {pears_1[1]:.04})")

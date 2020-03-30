@@ -6,13 +6,13 @@ from analysis.train_model import *
 def main():
     rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
 
-    filename_pt = f"BNCNN_{architecture}_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+    filename_pt = f"BNCNN_{architecture}_{predicted_outcome}_{list(directories.keys())[list(directories.values()).index(dataDir)]}" \
                   f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_model.pt"
 
     torch.save(net, "models/" + filename_pt)
 
     try:  # old method of saving performance
-        filename_stats = f"BNCNN_{architecture}_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+        filename_stats = f"BNCNN_{architecture}_{predicted_outcome}_{list(directories.keys())[list(directories.values()).index(dataDir)]}" \
                          f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}" + rundate + "_stats.npz"
         np.savez_compressed("models/" + filename_stats,
                             test_losses=losses_test,
@@ -24,7 +24,7 @@ def main():
                             rundate=rundate)
 
     except NameError:
-        filename_performance = f"BNCNN_{architecture}_{predicted_outcome}_{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}" \
+        filename_performance = f"BNCNN_{architecture}_{predicted_outcome}_{list(directories.keys())[list(directories.values()).index(dataDir)]}" \
                                f"_{data_to_use}_{deconfound_flavor}{scl}__es{ep_int}_" + rundate + '_performance'
 
         performance = performance.assign_coords(rundate=rundate)

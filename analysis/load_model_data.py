@@ -36,11 +36,11 @@ ffi_N = np.array(behavioral['NEOFAC_N'])
 # Finding indices of patients without FFI data
 ffi_labels = ['O', 'C', 'E', 'A', 'N']
 ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
-
-ffi_nansubs = []
-for i, x in enumerate(ffis):
-    ffi_nansubs.append(np.where(np.isnan(x))[0])
-ffi_nansubs = np.unique(ffi_nansubs)  # TODO: delete if nothing is being calculated
+#
+# ffi_nansubs = []
+# for i, x in enumerate(ffis):
+#     ffi_nansubs.append(np.where(np.isnan(x))[0])
+# ffi_nansubs = np.unique(ffi_nansubs)  # TODO: delete if nothing is being calculated
 ffis = np.array(ffis).T
 
 # transforming 'gender' to dummy variables
@@ -74,8 +74,6 @@ for i, x in enumerate(confounds):
 ###############################################################
 # # Deconfounding X and Y for data classes
 ###############################################################
-# TODO: Test data is actually deconfounded.
-#  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
 # Setting variable for network to predict
 if predicted_outcome == 'neuro':
@@ -92,13 +90,10 @@ elif predicted_outcome == 'sex':
 ###############################################################
 # # Deconfounding X and Y for data classes
 ###############################################################
-# TODO: Test data is actually deconfounded.
-#  Lack of SVM learning about age with age deconfounded is necessary but not sufficient result
 
-saved_dc_x = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}' \
-             f'{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
-saved_dc_y = f'data/transformed_data/deconfounded/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}' \
-             f'{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
+dir_str = '_'.join(chosen_dir)
+saved_dc_x = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
+saved_dc_y = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
 
 if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
     if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it
@@ -151,11 +146,11 @@ Y = Y.astype(float)  # ensuring Y is not of type object
 if data_to_use == 'positive definite' or data_to_use == 'tangent':
     # Test all matrices for positive definiteness
     num_notPD, which = areNotPD(cdata)
-    print(f'There are {num_notPD} non-PD matrices in {dataDir}...\n')
+    print(f'There are {num_notPD} non-PD matrices in {dir_str}...\n')
 
     # If data set has non-PD matrices, convert to closest PD matrix
     if num_notPD != 0:
-        saved_pd = f'data/transformed_data/positive_definite/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_PD.npy'
+        saved_pd = f'data/transformed_data/positive_definite/{dir_str}{scl}_PD.npy'
         if os.path.isfile(saved_pd):
             print('Loading saved positive definite matrices ...\n')
             pddata = np.load(saved_pd)
@@ -174,7 +169,7 @@ if data_to_use == 'positive definite' or data_to_use == 'tangent':
 
 if data_to_use == 'tangent':
     # If data set non-existent, projecting matrices into tangent space
-    saved_tan = f'data/transformed_data/tangent/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_tangent.npy'
+    saved_tan = f'data/transformed_data/tangent/{dir_str}{scl}_tangent.npy'
     if os.path.isfile(saved_tan):
         print('Loading saved tangent space matrices ...\n')
         tdata = np.load(saved_tan)

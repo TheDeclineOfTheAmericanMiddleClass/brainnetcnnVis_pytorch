@@ -1,4 +1,5 @@
 import torch
+import xarray as xr
 
 from preprocessing.degrees_of_freedom import *
 from preprocessing.preproc_funcs import *
@@ -7,20 +8,30 @@ from preprocessing.preproc_funcs import *
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 use_cuda = torch.cuda.is_available()
 
-if dataDir == dataDirs['HCP_face_268']:  # read in task-based connectivity data
-    taskIDs, taskCorr, taskNames, taskdata = read_face900_data()
-    toi = 'tfMRI_EMOTION'  # task of interest
-    cdata = array2matrix_face900(taskCorr, toi, taskdata, r_transform=False)
-    subnums = taskIDs
+if multi_input:  # create xarray to hold all matrices
+    for i, x in enumerate(chosen_dir):
+        partial, subnums = read_mat_data(directories[x])
+        nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
+        partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes], dims=['subject', 'dim1', 'dim2'])
+        partial.name = x
 
-else:  # read in the resting-state connectivity data
-    if dataDir == dataDirs['Lea_EB_rsfc_264']:
-        toi = 'eb'  # edge betweenness
-    else:
-        toi = 'rsfc'
-    cdata, subnums = read_raw_data(dataDir, actually_read=True)
+        if i == 0:
+            cdata = partial
+        if i > 0:
+            cdata = xr.align(cdata, partial, join='inner', exclude=['dim1',
+                                                                    'dim2'])  # takes intersection, removing subjects without matrices in both datasets
 
-# TODO: implement better handling of subject with Nan-valued data
+    multi_cdata = xr.merge(cdata, compat='override',
+                           join='exact')  # (join='inner') only holds for matrices of same parcellation
+    multi_cdata = multi_cdata.sortby(['subject', 'dim1', 'dim2'], ascending=True)
+    subnums = multi_cdata.subject.values
+
+    cdata = multi_cdata  # TODO: remove if redundant
+
+elif not multi_input:
+    cdata, subnums = read_mat_data(directories[chosen_dir[0]])
+
+# TODO: implement better handling of subject with NaN-valued data
 # Rudimentary handling of subjects with NaN values in FFI and confounds
 # nan_subs = []
 # if len(cdata) == 1003:
@@ -43,4 +54,4 @@ else:  # read in the resting-state connectivity data
 restricted, behavioral = read_dem_data(subnums)
 
 # # Plotting arbitrary matrix/matrices to ensure data looks okay
-# plot_raw_data(cdata, dataDir, nMat=2)
+# plot_mat_data(cdata, dataDir, nMat=2)

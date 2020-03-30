@@ -51,7 +51,7 @@
 # # Data and important indices
 # dataDir = 'data/self_created_HCP_mats/ICA300_corr'
 # # dataDir = 'data/self_created_HCP_mats/ICA300_rho50_pcorr' # 3 non-PD matrices
-# cdata, subnums = read_raw_data(dataDir)
+# cdata, subnums = read_mat_data(dataDir)
 # final_train_list = np.loadtxt('Subject_Splits/final_train_list.txt')
 # train_ind = np.where(np.isin(subnums, final_train_list))[0]
 #
