@@ -75,50 +75,49 @@
 # C, C_pi, b_hatX, nan_ind = deconfound_matrix(est_data=cdata, confounds=confounds, set_ind=train_ind)
 
 #################################################
-# # Consolidating each face task into .txt files
+# # Consolidating each face task into .txt files TODO: OUTDATED! Please delete upon confirmation
 #################################################
-
-import shutil
-import zipfile
-from os import listdir
-
-import nibabel as nib
-
-# Identifiying face task .zips
-filedir = 'data/HCP.zips'
-face_files = []
-for i, fil in enumerate(listdir(filedir)):
-    if fil.endswith('3T_tfMRI_EMOTION_preproc.zip'):
-        face_files.append(fil)
-face_files.sort()
-
-# releavant directories
-graddir = ['LR', 'RL']
-LRgz = 'MNINonLinear/Results/tfMRI_EMOTION_LR/tfMRI_EMOTION_LR.nii.gz'
-RLgz = 'MNINonLinear/Results/tfMRI_EMOTION_RL/tfMRI_EMOTION_RL.nii.gz'
-ts = [LRgz, RLgz]  # time series
-
-# Extracting face timeseries, concatenating LR/RL and writing to .txt file
-for i, fil in enumerate(face_files[0:1]):  # for each subject's face zip
-    subfilePath = f'{filedir}/{fil}'
-    with zipfile.ZipFile(subfilePath, 'r') as zip_ref:  # takes care of closing zip file
-        zip_ref.extractall('data/tmp')  # TODO: change so extracted to actual temp file
-
-        # allocate empty array to concatenate
-        for j, grad in enumerate(ts):
-            some_grad = f'data/tmp/{fil[0:6]}/{grad}'
-            img = nib.load(some_grad)
-            print(img.shape)
-            # with gzip.open(, 'rb') as f_in:
-            #     with open(f'data/timeseries/raw/face/{graddir[j]}/{fil[0:6]}.txt', 'wb') as f_out:
-            #         shutil.copyfileobj(f_in, f_out)
-
-        # concatenate LR ans RL nii timeseries
-        shutil.rmtree(f'data/tmp/{fil[0:6]}')  # delete temp file
-
-import matplotlib.pyplot as plt
-
-epi_img_data = img.get_fdata()
+#
+# import shutil
+# import zipfile
+# from os import listdir
+# import nibabel as nib
+#
+# # Identifiying face task .zips
+# filedir = 'data/HCP.zips'
+# face_files = []
+# for i, fil in enumerate(listdir(filedir)):
+#     if fil.endswith('3T_tfMRI_EMOTION_preproc.zip'):
+#         face_files.append(fil)
+# face_files.sort()
+#
+# # releavant directories
+# graddir = ['LR', 'RL']
+# LRgz = 'MNINonLinear/Results/tfMRI_EMOTION_LR/tfMRI_EMOTION_LR.nii.gz'
+# RLgz = 'MNINonLinear/Results/tfMRI_EMOTION_RL/tfMRI_EMOTION_RL.nii.gz'
+# ts = [LRgz, RLgz]  # time series
+#
+# # Extracting face timeseries, concatenating LR/RL and writing to .txt file
+# for i, fil in enumerate(face_files[0:1]):  # for each subject's face zip
+#     subfilePath = f'{filedir}/{fil}'
+#     with zipfile.ZipFile(subfilePath, 'r') as zip_ref:  # takes care of closing zip file
+#         zip_ref.extractall('data/tmp')  # TODO: change so extracted to actual temp file
+#
+#         # allocate empty array to concatenate
+#         for j, grad in enumerate(ts):
+#             some_grad = f'data/tmp/{fil[0:6]}/{grad}'
+#             img = nib.load(some_grad)
+#             print(img.shape)
+#             # with gzip.open(, 'rb') as f_in:
+#             #     with open(f'data/timeseries/raw/face/{graddir[j]}/{fil[0:6]}.txt', 'wb') as f_out:
+#             #         shutil.copyfileobj(f_in, f_out)
+#
+#         # concatenate LR ans RL nii timeseries
+#         shutil.rmtree(f'data/tmp/{fil[0:6]}')  # delete temp file
+#
+# import matplotlib.pyplot as plt
+#
+# epi_img_data = img.get_fdata()
 
 
 def show_slices(slices):

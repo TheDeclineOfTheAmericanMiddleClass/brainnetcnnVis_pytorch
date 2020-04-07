@@ -125,19 +125,19 @@ def main():
                     np.abs(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='pearsonR')]), axis=0) <=
                               np.abs(performance[epoch].loc[dict(set='test', metrics='pearsonR')])).sum() >= majority
 
-                if stagnant_mae and stagnant_r:
+                if stagnant_mae or stagnant_r:
                     break  # TODO: implement logic to break then run (1) save model, (2) plot model results, (3) run next model
 
             elif multiclass:
                 if np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='accuracy')]
                               <= performance[epoch].loc[dict(set='test', metrics='accuracy')]):
                     break
-            else:
+            elif not multiclass and not multi_outcome:
                 stagnant_mae = np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='MAE')],
                                           axis=0) <= performance[epoch].loc[dict(set='test', metrics='MAE')]
                 stagnant_r = np.nanmean(performance[epoch - ep_int:-1].loc[dict(set='test', metrics='pearsonR')],
                                         axis=0) <= performance[epoch].loc[dict(set='test', metrics='pearsonR')]
-                if stagnant_mae and stagnant_r:
+                if stagnant_mae or stagnant_r:
                     break
 
 

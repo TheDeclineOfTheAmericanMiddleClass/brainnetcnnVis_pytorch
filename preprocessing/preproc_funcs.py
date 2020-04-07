@@ -3,6 +3,7 @@ from __future__ import print_function
 import glob
 import inspect
 import re
+import sys
 from os import listdir
 from os.path import isfile, join
 
@@ -33,7 +34,7 @@ def read_dem_data(subnums):
 
 
 # read face-emotional data from HCP900 cohort
-def read_face900_data():
+def read_HCP900_data():
     filepath = 'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.mat'
     taskdata = {}
     f = h5py.File(filepath, 'r')
@@ -66,7 +67,7 @@ def read_face900_data():
 
 
 # read connectivity matrices from .txt, .npy, .mat files
-def read_mat_data(dataDir):  # TODO: remove actually_read if it serves no purpose
+def read_mat_data(dataDir, toi=[]):
     data = []  # Allocating list for connectivity matrices
     subnums = []  # subject IDs
 
@@ -97,10 +98,9 @@ def read_mat_data(dataDir):  # TODO: remove actually_read if it serves no purpos
                     subnums.append(sn)
 
     elif dataDir == 'data/cfHCP900_FSL_GM':
-        taskIDs, taskCorr, taskNames, taskdata = read_face900_data()
-        toi = 'tfMRI_EMOTION'  # task of interest
-        data = array2matrix_face900(taskCorr, toi, taskdata, r_transform=False)
-        subnums = taskIDs
+        taskIDs, taskCorr, taskNames, taskdata = read_HCP900_data()
+        data = arr2mat_HCP900(taskCorr, toi, taskdata, r_transform=False)
+        subnums = list(taskIDs)
 
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
@@ -159,7 +159,7 @@ def read_mat_data(dataDir):  # TODO: remove actually_read if it serves no purpos
 
     data = np.array(data)
 
-    print(f'{dataDir} Matrix data read in...\n')
+    print(f'Success! {dataDir} {toi} read in.\n')
 
     return data, subnums
 
@@ -633,14 +633,18 @@ def get_confound_parameters(est_data, confounds, set_ind=None):
 
 
 # Reshapes task array (i.e. after deconfounding) into symmetric matrices, optionally does z-score to R transformation
-def array2matrix_face900(taskCorr, task, taskdata, r_transform=False, is_task=True, new_size=268):
+def arr2mat_HCP900(taskCorr, task, taskdata, r_transform=False, is_task=True, new_size=268):
     taskCorrMat = []
 
     for i in range(taskCorr.shape[1]):  # reshaping array into symmetric matrix
         out = np.zeros((new_size, new_size))
 
         if is_task:  # adding to allow for reshaping of confound-corrected data array
-            taskind = np.where(np.array(taskdata['SESSIONS']) == task)[0][0]
+            try:
+                taskind = np.where(np.array(taskdata['SESSIONS']) == task)[0][0]
+            except IndexError:
+                print(f'\'{task}\' is not a valid task. Please provide a valid task to be read in.')
+                sys.exit()
 
         uinds = np.triu_indices(len(out), k=1)
         out[uinds] = taskCorr[:, i, taskind]
@@ -660,10 +664,10 @@ def array2matrix_face900(taskCorr, task, taskdata, r_transform=False, is_task=Tr
     for i, x in enumerate(taskCorrMat):
         np.fill_diagonal(x, 1)  # on z-scored data
 
-    if check_symmetric(taskCorrMat[0]):
-        print('Matrix 0 is symmetric! Assumming all matrices are...\n')
-    else:
-        print('Matrix 0 is not symmetric. Something went wrong...\n')
+    # if check_symmetric(taskCorrMat[0]):
+    #     print('Matrix 0 is symmetric! Assumming all matrices are...\n')
+    # else:
+    #     print('Matrix 0 is not symmetric. Something went wrong...\n')
 
     return taskCorrMat
 

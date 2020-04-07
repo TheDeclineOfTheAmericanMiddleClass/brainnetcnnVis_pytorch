@@ -9,7 +9,7 @@ from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.load_model_data import *
 
-# SETTING UP DATA TO BE TRAINED ON
+# SETTING UP DATA TO BE TRAINED ON # TODO: implement multiinput here as well
 Xtrain_corr = X[train_ind]
 Y_train = Y[train_ind]  # Y_train
 
@@ -95,19 +95,17 @@ def train_SVM():
 ### Fully Connected Network/MLP ###
 ###################################
 
-# TODO: once BrainNetCNN fixed for multiclass classification, fix hyperparameter-tuned Yeo FC90Net for sex classifciaton
+# TODO: add argmax for functionality
 # class FC90Net_YeoSex(torch.nn.Module):
 #     def __init__(self, example):  # removed num_classes=10
 #         super(FC90Net_YeoSex, self).__init__()
-#         self.dense1 = torch.nn.Linear(1, 3, example)
+#         self.dense1 = torch.nn.Linear(num_input, 3, example)
 #         self.dense2 = torch.nn.Linear(3, 2)
-#         # self.dense3 = torch.nn.Linear(2,num_outcome)
 #
 #     def forward(self, x):
 #         out = F.dropout(F.leaky_relu(self.dense1(x), negative_slope=.33), p=.00275)
 #         out = out.view(out.size(0), -1)
 #         out = F.leaky_relu(self.dense2(out), negative_slope=.33)
-#         # out = F.leaky_relu(self.dense3(out), negative_slope=.33)
 #
 #         return out
 

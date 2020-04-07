@@ -24,7 +24,7 @@ elif architecture == 'kawahara':
 elif architecture == 'usama':
     net = Usama_BNCNN(trainset.X)
 else:
-    print(f'{architecture} architecture not available. Using default \'usama\' architecture.')
+    print(f'"{architecture}" architecture not available. Using default \'usama\' architecture...\n')
     net = Usama_BNCNN(trainset.X)
 
 # Putting the model on the GPU

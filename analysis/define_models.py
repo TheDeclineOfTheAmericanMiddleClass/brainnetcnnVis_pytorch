@@ -360,54 +360,54 @@ class Kawahara_BNCNN(torch.nn.Module):
         return out
 
 
-# Kawahara Pervaiz's BrainNetCNN Network
-class MultiInput_BNCNN(torch.nn.Module):
-    def __init__(self, example):  # removed num_classes=10
-        super(MultiInput_BNCNN, self).__init__()
-        print('\nInitializing BNCNN: MultiInput, Kawahara Architecture')
-        self.in_planes = example.size(1)
-        self.d = example.size(3)
-
-        self.e2econv1 = E2EBlock(example.size(1), 32, example, bias=True)  # TODO: 2 inputs! Done! ?Must be same size?
-        self.e2econv2 = E2EBlock(32, 32, example, bias=True)
-        self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
-        self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))
-        self.dense1 = torch.nn.Linear(256, 128)
-        self.dense2 = torch.nn.Linear(128, 30)
-        self.batchnorm = torch.nn.BatchNorm1d(30)
-        self.dense3 = torch.nn.Linear(30, num_outcome)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
-                init.xavier_uniform_(m.weight)
-            elif isinstance(m, nn.BatchNorm1d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    # # forward from paper figure 1.
-    # def forward(self, x):
-    #     out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
-    #     out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
-    #     out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
-    #     out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
-    #     out = out.view(out.size(0), -1)
-    #     out = F.dropout(F.relu(self.dense1(out)), p=0.5)
-    #     out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-    #     out = F.relu(self.dense3(out))
-
-    # forward from section 2.3 description
-    def forward(self, x):
-        out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
-        out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
-        out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
-        out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
-        out = out.view(out.size(0), -1)
-        out = F.relu(self.dense1(out))
-        out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-        # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
-        out = F.relu(self.dense3(out))
-
-        return out
+# # Kawahara Pervaiz's BrainNetCNN Network
+# class MultiInput_BNCNN(torch.nn.Module):
+#     def __init__(self, example):  # removed num_classes=10
+#         super(MultiInput_BNCNN, self).__init__()
+#         print('\nInitializing BNCNN: MultiInput, Kawahara Architecture')
+#         self.in_planes = example.size(1)
+#         self.d = example.size(3)
+#
+#         self.e2econv1 = E2EBlock(example.size(1), 32, example, bias=True)  # TODO: 2 inputs! Done! ?Must be same size?
+#         self.e2econv2 = E2EBlock(32, 32, example, bias=True)
+#         self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
+#         self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))
+#         self.dense1 = torch.nn.Linear(256, 128)
+#         self.dense2 = torch.nn.Linear(128, 30)
+#         self.batchnorm = torch.nn.BatchNorm1d(30)
+#         self.dense3 = torch.nn.Linear(30, num_outcome)
+#
+#         for m in self.modules():
+#             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+#                 init.xavier_uniform_(m.weight)
+#             elif isinstance(m, nn.BatchNorm1d):
+#                 m.weight.data.fill_(1)
+#                 m.bias.data.zero_()
+#
+#     # # forward from paper figure 1.
+#     # def forward(self, x):
+#     #     out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
+#     #     out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
+#     #     out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+#     #     out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+#     #     out = out.view(out.size(0), -1)
+#     #     out = F.dropout(F.relu(self.dense1(out)), p=0.5)
+#     #     out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+#     #     out = F.relu(self.dense3(out))
+#
+#     # forward from section 2.3 description
+#     def forward(self, x):
+#         out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
+#         out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
+#         out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
+#         out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
+#         out = out.view(out.size(0), -1)
+#         out = F.relu(self.dense1(out))
+#         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
+#         # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
+#         out = F.relu(self.dense3(out))
+#
+#         return out
 
 
 class FNN(nn.Module):

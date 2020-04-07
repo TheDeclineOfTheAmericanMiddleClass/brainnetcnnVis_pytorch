@@ -8,28 +8,44 @@ from preprocessing.preproc_funcs import *
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 use_cuda = torch.cuda.is_available()
 
+# TODO: implement smart read in of .nc data in HCPDataset class in define_models.py
 if multi_input:  # create xarray to hold all matrices
-    for i, x in enumerate(chosen_dir):
-        partial, subnums = read_mat_data(directories[x])
-        nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
-        partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes], dims=['subject', 'dim1', 'dim2'])
-        partial.name = x
+    cdata = []
+    for i, x in enumerate(chosen_dir):  # for all directories
 
-        if i == 0:
-            cdata = partial
-        if i > 0:
-            cdata = xr.align(cdata, partial, join='inner', exclude=['dim1',
-                                                                    'dim2'])  # takes intersection, removing subjects without matrices in both datasets
+        if chosen_dir != ['HCP_alltasks_268']:  # setting chosen_tasks if multiple are available in the directory
+            chosen_tasks_in_dir = ['NA']
+        elif chosen_dir == ['HCP_alltasks_268']:
+            chosen_tasks_in_dir = chosen_tasks
 
-    multi_cdata = xr.merge(cdata, compat='override',
-                           join='exact')  # (join='inner') only holds for matrices of same parcellation
-    multi_cdata = multi_cdata.sortby(['subject', 'dim1', 'dim2'], ascending=True)
-    subnums = multi_cdata.subject.values
+        for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
+            try:
+                partial, subnums = read_mat_data(directories[x], toi=tasks[taskname])
+            except KeyError:
+                print(f'\'{taskname}\' is an invalid task name for dataset {x}...')
+                raise
 
-    cdata = multi_cdata  # TODO: remove if redundant
+            nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
+            partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes], dims=['subject', 'dim1', 'dim2'])
+            partial.name = x + '_' + taskname
+
+            cdata.append(partial)
+
+    cdata = xr.align(*cdata, join='inner', exclude=['dim1',
+                                                    'dim2'])  # 'inner' takes intersection, removing subjects without matrices in both datasets
+    cdata = xr.merge(cdata, compat='override', join='exact')  # 'exact' merges on all dimensions exactly
+
+    cdata = cdata.sortby(['subject', 'dim1', 'dim2'], ascending=True)
+    subnums = cdata.subject.values
 
 elif not multi_input:
-    cdata, subnums = read_mat_data(directories[chosen_dir[0]])
+
+    if chosen_dir != ['HCP_alltasks_268']:  # setting chosen_tasks if multiple are available in the directory
+        chosen_tasks_in_dir = ['NA']
+    elif chosen_dir == ['HCP_alltasks_268']:
+        chosen_tasks_in_dir = chosen_tasks
+
+    cdata, subnums = read_mat_data(directories[chosen_dir[0]], toi=tasks[chosen_tasks_in_dir[0]])
 
 # TODO: implement better handling of subject with NaN-valued data
 # Rudimentary handling of subjects with NaN values in FFI and confounds
