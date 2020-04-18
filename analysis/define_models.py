@@ -24,8 +24,7 @@ class HCPDataset(torch.utils.data.Dataset):
 
         if self.mode == "train":
             if multi_input:
-                x = np.array(xr.merge(
-                    [X[var[1]].isel(dict(subject=train_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                x = np.array(xr.merge([X[var].isel(dict(subject=train_ind)) for var in list(X.data_vars)]).to_array())
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
                 x = X[train_ind]
@@ -34,7 +33,7 @@ class HCPDataset(torch.utils.data.Dataset):
         elif self.mode == "test":
             if multi_input:
                 x = np.array(xr.merge(
-                    [X[var[1]].isel(dict(subject=test_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                    [X[var].isel(dict(subject=test_ind)) for var in list(X.data_vars)]).to_array())
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
                 x = X[test_ind]
@@ -44,7 +43,7 @@ class HCPDataset(torch.utils.data.Dataset):
             if multi_input:
                 x = np.array(
                     xr.merge(
-                        [X[var[1]].isel(dict(subject=val_ind)) for var in enumerate(list(X.data_vars))]).to_array())
+                        [X[var].isel(dict(subject=val_ind)) for var in list(X.data_vars)]).to_array())
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
                 x = X[val_ind]

@@ -1,123 +1,63 @@
-import time
-
-from scipy.stats import pearsonr
-from sklearn import neural_network
-# from preprocessing.Model_DOF import
-from sklearn.linear_model import MultiTaskElasticNetCV
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import mean_absolute_error as mae
+from sklearn import neural_network, svm
+from sklearn.linear_model import ElasticNet, SGDClassifier
+from sklearn.model_selection import cross_validate
 
 from analysis.load_model_data import *
+from preprocessing.preproc_funcs import *
 
-# SETTING UP DATA TO BE TRAINED ON # TODO: implement multiinput here as well
-Xtrain_corr = X[train_ind]
-Y_train = Y[train_ind]  # Y_train
+print(f'Training shallow networks to predict {predicted_outcome}, from data in {list(X.keys())}...\n')
 
-Xtest_corr = X[test_ind]
-Y_test = Y[test_ind]  # Y_test
+# creating data arrays to be trained on
+if not multi_input:  # TODO: adjust this for xarray
+    shallowX_train = np.array([sample[np.triu_indices(len(sample), k=1)] for j, sample in enumerate(X[train_ind])])
+    shallowX_test = np.array([sample[np.triu_indices(len(sample), k=1)] for j, sample in enumerate(X[test_ind])])
 
-Xval_corr = X[val_ind]
-Y_val = Y[val_ind]
+elif multi_input:
+    # concatenate the upper triangle of of each variable in the X xarray dataset
+    shallowX_train = np.concatenate([X[var].isel({'subject': train_ind}).values[:,
+                                     np.triu_indices_from(X[var][0], k=1)[0], np.triu_indices_from(X[var][0], k=1)[1]]
+                                     for i, var in enumerate(X.keys())], axis=1)
+    shallowX_test = np.concatenate([X[var].isel({'subject': test_ind}).values[:,
+                                    np.triu_indices_from(X[var][0], k=1)[0], np.triu_indices_from(X[var][0], k=1)[1]]
+                                    for i, var in enumerate(X.keys())], axis=1)
 
+shallowY_train = Y[train_ind]
+shallowY_test = Y[test_ind]
 
-# for deconfounded data...
-shallowX_train = np.array([Xtrain_corr[j][np.triu_indices(len(Xtrain_corr[0]), k=1)] for j in range(len(Xtrain_corr))])
-shallowY_train = np.array(list(Y_train))
-shallowX_test = np.array([Xtest_corr[j][np.triu_indices(len(Xtest_corr[0]), k=1)] for j in range(len(Xtest_corr))])
-shallowY_test = np.array(list(Y_test))
-
-
-#########################
-### ElasticNet model ####
-#########################
-
-def train_ElasticNet():
-    print('Training MultiTaskElasticNetCV...')
-
-    # TODO: implement elastic net cross-validation?
-    # https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNetCV.html#sklearn.linear_model.ElasticNetCV
-
-    # if multiclass:
-    regr = MultiTaskElasticNetCV(cv=3,
-                                 random_state=1234)  # NOTE: tried varying l1_ratio, precompute, normalize, selection
-    # else:
-    #     regr = ElasticNetCV(cv=3, random_state=1234)
-
-    regr.fit(shallowX_train, shallowY_train)
-    y_elasticPred = regr.predict(shallowX_test)
-    print(y_elasticPred.shape)
-    print('...training complete!\n')
-
-    # elasticNet metrics
-    if multiclass:
-        acc = accuracy_score(np.argmax(y_elasticPred, 1), np.argmax(shallowY_test, 1))
-        return acc, regr
-
-    else:
-        elastic_r, elastic_p = pearsonr(shallowY_test, y_elasticPred)
-        elastic_mae = mae(shallowY_test, y_elasticPred)
-
-        return [elastic_r, elastic_p, elastic_mae], regr
+if multiclass:  # transforming one_hot encoded Y-data back into multiclass
+    shallowY_train = onehot_to_multiclass(shallowY_train)
+    shallowY_test = onehot_to_multiclass(shallowY_test)
 
 
-# elastic_r, elastic_p, elastic_mae, trained_elastic = train_ElasticNet()
-
-###############################
-### Support Vector Machine ####
-###############################
-from sklearn import svm
-
-
+# defining training on SVM, FC90 (MLP), and ElasticNet
 def train_SVM():
     print('Training SVM...')
 
-    if not multi_outcome or not multiclass:
-        clf = svm.SVC(kernel='linear', gamma='scale', verbose=True)
-        clf.fit(shallowX_train, shallowY_train)
-
-        y_svmPred = clf.predict(shallowX_test)
-
-        svm_r, svm_p = pearsonr(shallowY_test, y_svmPred)
-        svm_mae = mae(shallowY_test, y_svmPred)
-        print('...training complete!\n')
-
-        return [svm_r, svm_p, svm_mae], clf
-
+    if not multi_outcome and not multiclass:
+        clf = svm.SVC(kernel='linear', gamma='scale', verbose=True, random_state=1234)
     else:
-        svm_r = svm_p = svm_mae = np.nan
-        print('ERROR: SVM cannot make multi-outcome or multi-class predictions !')
-        return
+        clf = SGDClassifier(verbose=True, random_state=1234)
 
+    # Cross-validation score
+    cv_results = cross_validate(clf, shallowX_train, shallowY_train, cv=5,
+                                scoring=['neg_mean_absolute_error', 'r2'],
+                                verbose=True)
 
-# svm_r, svm_p, svm_mae, trained_svm = train_SVM()
+    print('...training complete!\n')
 
-###################################
-### Fully Connected Network/MLP ###
-###################################
+    return cv_results
 
-# TODO: add argmax for functionality
-# class FC90Net_YeoSex(torch.nn.Module):
-#     def __init__(self, example):  # removed num_classes=10
-#         super(FC90Net_YeoSex, self).__init__()
-#         self.dense1 = torch.nn.Linear(num_input, 3, example)
-#         self.dense2 = torch.nn.Linear(3, 2)
-#
-#     def forward(self, x):
-#         out = F.dropout(F.leaky_relu(self.dense1(x), negative_slope=.33), p=.00275)
-#         out = out.view(out.size(0), -1)
-#         out = F.leaky_relu(self.dense2(out), negative_slope=.33)
-#
-#         return out
 
 def train_FC90net():
     print('Training FC90Net...')
-    from sklearn.model_selection import KFold
-    kf = KFold(n_splits=10)
+    # kf = KFold(n_splits=10)
 
     if multi_outcome:
         fl = num_outcome
     elif multiclass:
         fl = num_classes
+    else:
+        fl = 1  # TODO: see later that this works
 
     # NOTE: dropout no possible for sklearn MLP
     FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=(3, fl),
@@ -134,39 +74,44 @@ def train_FC90net():
                                            n_iter_no_change=10,
                                            random_state=1234)
 
-    FC90Net.fit(shallowX_train, shallowY_train)
+    if multiclass:
+        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=5,
+                                    scoring=['balanced_accuracy'],
+                                    verbose=True)
 
-    y_fcPred = FC90Net.predict(shallowX_test)
+    else:  # TODO: make sure this works for single-class, single-outcome
+        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=5,
+                                    scoring=['neg_mean_absolute_error', 'r2'],
+                                    verbose=True)
+
+    print('...training complete!\n')
+
+    return cv_results
+
+
+def train_ElasticNet():
+    print('Training ElasticNet...')
 
     if multiclass:
-        fc_metrics = accuracy_score(shallowY_test, y_fcPred)
+        regr = SGDClassifier(penalty='elasticnet', l1_ratio=.5, alpha=1,  # logistic regression with even L1/L2 penalty
+                             random_state=1234)
+        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=5,
+                                    scoring=['balanced_accuracy'],
+                                    verbose=True)
 
-    else:
-        fc_r, fc_p = pearsonr(shallowY_test, y_fcPred)
-        fc_mae = mae(shallowY_test, y_fcPred)
-        fc_metrics = {'pearson R': fc_r, 'p-value': fc_p, 'MAE': fc_mae}
+    else:  # TODO: make sure this works for single-class, single-outcome
+        regr = ElasticNet(random_state=1234)
+        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=5,
+                                    scoring=['neg_mean_absolute_error', 'r2'],
+                                    verbose=True)
 
-    return fc_metrics, FC90Net
+    print('...training complete!\n')
+
+    return cv_results
 
 
-if multiclass:
-    start_time = time.time()
-    ENet_metrics, ENet = train_ElasticNet()
-    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
-    print(f'ElasticNet **{predicted_outcome}** test accuracy: {ENet_metrics * 100:.4} %')
+elastic_cv_results_ = train_ElasticNet()  # linear regression
 
-    start_time = time.time()
-    fc_metrics, FC90Net = train_FC90net()
-    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
-    print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')
+SVM_cv_results = train_SVM()
 
-if multi_outcome:
-    start_time = time.time()
-    ENet_metrics, ENet = train_ElasticNet()
-    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
-    print(f'ElasticNet **{predicted_outcome}** test accuracy: {ENet_metrics * 100:.4} %')
-
-    start_time = time.time()
-    fc_metrics, FC90Net = train_FC90net()
-    print(f"\ntime elapsed: {time.time() - start_time:.2f}s")
-    print(f'Yeo_FC90net **{predicted_outcome}** test accuracy: {fc_metrics * 100:.4} %')
+FC90_cv_results = train_FC90net()

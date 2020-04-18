@@ -36,11 +36,6 @@ ffi_N = np.array(behavioral['NEOFAC_N'])
 # Finding indices of patients without FFI data
 ffi_labels = ['O', 'C', 'E', 'A', 'N']
 ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
-#
-# ffi_nansubs = []
-# for i, x in enumerate(ffis):
-#     ffi_nansubs.append(np.where(np.isnan(x))[0])
-# ffi_nansubs = np.unique(ffi_nansubs)  # TODO: delete if nothing is being calculated
 ffis = np.array(ffis).T
 
 # transforming 'gender' to dummy variables
@@ -128,17 +123,10 @@ elif deconfound_flavor == 'X0Y0':  # no changes to X data
     # np.save(saved_dc_x, cdata)
     # np.save(saved_dc_y, Y)
 
-##########################################
-## Setting up multiclass classification ##
-##########################################
-
+# Setting up multiclass classification
 if multiclass and one_hot:  # Sets multiclass outcome as one-hot encoded targets
-    Y_classes = np.zeros((Y.squeeze().shape[0], len(np.unique(Y))))
-    for i, x in enumerate(np.unique(Y)):
-        Y_classes[[np.where(Y == x)[0]], i] = 1
-    Y = Y_classes
+    Y = multiclass_to_onehot(Y).astype(float)  # ensuresY is not of type object
 
-Y = Y.astype(float)  # ensuring Y is not of type object
 ###################################################################
 # # Projecting matrices into positive definite
 ###################################################################
@@ -187,6 +175,7 @@ if data_to_use == 'tangent':
     del (cdata, pddata, tdata)
 elif data_to_use == 'untransformed':
     X = cdata
+    del cdata
 elif data_to_use == 'positive definite':
     X = pddata
     del (cdata, pddata)
