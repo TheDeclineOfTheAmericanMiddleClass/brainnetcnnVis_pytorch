@@ -13,16 +13,18 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, n
 valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
 
 # Creating the model
-if predicted_outcome == 'sex' and architecture == 'yeo_sex':
+if predicted_outcome == 'Gender' and architecture == 'yeo_sex':
     net = YeoSex_BNCNN(trainset.X)
-elif predicted_outcome == 'sex' and architecture == 'parvathy_v2':
+elif predicted_outcome == 'Gender' and architecture == 'parvathy_v2':
     net = ParvathySex_BNCNN_v2byAdu(trainset.X)
-# elif predicted_outcome == 'sex' and architecture == 'parvathy_orig':
+# elif predicted_outcome == 'Gender' and architecture == 'parvathy_orig':
 #     net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
 elif architecture == 'kawahara':
     net = Kawahara_BNCNN(trainset.X)
 elif architecture == 'usama':
     net = Usama_BNCNN(trainset.X)
+elif architecture == 'FC90Net':
+    net = FC90Net_YeoSex(trainset.X)
 else:
     print(f'"{architecture}" architecture not available. Using default \'usama\' architecture...\n')
     net = Usama_BNCNN(trainset.X)
@@ -35,8 +37,12 @@ if use_cuda:
 # check if model parameters are on GPU or no
 assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
-# optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
-optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=wd)
+if optimizer == 'sgd':
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum, nesterov=True, weight_decay=wd)
+elif optimizer == 'adam':
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=wd)
+else:
+    raise KeyError(f'{optimizer} is not a valid optimizer. Please try again.')
 
 if multiclass and num_classes <= 2:
     y_unique = trainset.Y.unique(sorted=True).numpy()
@@ -54,6 +60,7 @@ else:
 
 
 def train():  # training in mini batches
+
     net.train()
     running_loss = 0.0
 
@@ -63,7 +70,7 @@ def train():  # training in mini batches
     for batch_idx, (inputs, targets) in enumerate(trainloader):
 
         if use_cuda:
-            if not multi_outcome and multiclass:
+            if not multi_outcome and not multiclass:  # TODO: ensure adding not multiclass functions
                 # print('unsqueezing target for vstack...')
                 inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
             else:
@@ -84,6 +91,13 @@ def train():  # training in mini batches
                                  weight=[y_propor[x] for x in targets])
 
         loss.backward()
+
+        # This line is used to prevent the vanishing / exploding gradient problem
+        torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=max_norm)  # TODO: see if max_norm size appropriate
+
+        for p in net.parameters():
+            p.data.add_(-lr, p.grad.data)
+
         optimizer.step()
 
         running_loss += loss.data.mean(0)  # only predicting 1 feature
@@ -98,7 +112,7 @@ def train():  # training in mini batches
 
     # return running_loss / batch_idx
 
-    if not multi_outcome or multiclass:
+    if not multi_outcome and not multiclass:  # TODO: see if changing or multiclass -> and not mutliclass works
         # print('y_true left well enough alone...')
         return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
     else:
@@ -144,7 +158,7 @@ def test():
             print('Test loss: %.6f' % (running_loss / 5))
             running_loss = 0.0
 
-    if not multi_outcome or multiclass:
+    if not multi_outcome and not multiclass:  # TODO: see if changing or multiclass -> and not mutliclass works
         # print('y_true left well enough alone...')
         return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
     else:

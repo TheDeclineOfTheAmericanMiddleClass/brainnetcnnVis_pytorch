@@ -2,95 +2,43 @@ import os
 
 from preprocessing.degrees_of_freedom import *
 from preprocessing.preproc_funcs import *
-from preprocessing.read_data import restricted, behavioral, subnums, cdata
+from preprocessing.read_data import subnums, cdata
 
-# Parvathy's partitions
+cdata['Gender'] = pd.get_dummies(cdata.Gender.values).F.to_xarray()  # transforming 'gender' to dummy variables
+outcome = np.array([cdata[x].values for x in predicted_outcome],
+                   dtype=float).squeeze().T  # Setting variable for network to predict
+
+###############################################################
+# Defining train, test, validaton sets with Parvathy's partitions
+###############################################################
 final_test_list = np.loadtxt('Subject_Splits/final_test_list.txt')
 final_train_list = np.loadtxt('Subject_Splits/final_train_list.txt')
 final_val_list = np.loadtxt('Subject_Splits/final_val_list.txt')
-# print(len(final_train_list) + len(final_test_list) + len(final_val_list))
-
-###############################################################
-# # Reading in HCP interview data
-###############################################################
-
-# Info for all subjects (age, family number, subjectID)
-Family_ID = restricted['Family_ID']  # for partitioning
-Subject = np.array(restricted['Subject'])
-
-# Age, Sex, and Confound info
-weight = np.array(restricted['Weight'])
-height = np.array(restricted['Height'])
-sleep_quality = np.array(behavioral['PSQI_Score'])  # larger score indicates worse quality of sleep
-handedness = np.array(restricted['Handedness'])  # larger score indicates worse quality of sleep
-gender = np.array(behavioral['Gender'])
-ages = np.array(restricted['Age_in_Yrs'])
-
-# Personality info
-ffi_O = np.array(behavioral['NEOFAC_O'])
-ffi_C = np.array(behavioral['NEOFAC_C'])
-ffi_E = np.array(behavioral['NEOFAC_E'])
-ffi_A = np.array(behavioral['NEOFAC_A'])
-ffi_N = np.array(behavioral['NEOFAC_N'])
-
-# Finding indices of patients without FFI data
-ffi_labels = ['O', 'C', 'E', 'A', 'N']
-ffis = [ffi_O, ffi_C, ffi_E, ffi_A, ffi_N]
-ffis = np.array(ffis).T
-
-# transforming 'gender' to dummy variables
-dummyv = [0, 1]  # dummy variables
-for i, x in enumerate(np.unique(gender)):  # quantifying gender
-    gen = np.where(gender == x)[0]
-    gender[gen] = dummyv[i]
-
-## Defining train, test, validaton sets
-# 70-15-15 train test validation split
-train_ind = np.where(np.isin(subnums, final_train_list))[0]
-test_ind = np.where(np.isin(subnums, final_test_list))[0]
-val_ind = np.where(np.isin(subnums, final_val_list))[0]
+train_subs, train_ind, _ = np.intersect1d(subnums, final_train_list, return_indices=True)
+val_subs, val_ind, _ = np.intersect1d(subnums, final_val_list, return_indices=True)
+test_subs, test_ind, _ = np.intersect1d(subnums, final_test_list, return_indices=True)
 
 print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets '
       f'({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
 
-# defining confounds
-confounds = [ages, weight, height, sleep_quality, handedness]
-
-# scaling confounds ONLY according to train set
-if scaled:
-    confounds = [x / np.max(np.abs(x[train_ind])) for _, x in
-                 enumerate(confounds)]  # TODO: note this won't make sense for multiclass w/ 3+ classes
-
-# finding indices of patients without confound data
-con_nansubs = []
-for i, x in enumerate(confounds):
-    con_nansubs.append(np.where(pd.isnull(x))[0])
-
 ###############################################################
 # # Deconfounding X and Y for data classes
 ###############################################################
-
-# Setting variable for network to predict
-if predicted_outcome == 'neuro':
-    outcome = ffi_N
-elif predicted_outcome == 'open':
-    outcome = ffi_O
-elif predicted_outcome == 'allFFI':
-    outcome = ffis
-elif predicted_outcome == 'age':
-    outcome = ages
-elif predicted_outcome == 'sex':
-    outcome = gender
-
-###############################################################
-# # Deconfounding X and Y for data classes
-###############################################################
-
 dir_str = '_'.join(chosen_dir)
-saved_dc_x = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{predicted_outcome}_x.npy'
-saved_dc_y = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{predicted_outcome}_y.npy'
+saved_dc_x = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{"_".join(predicted_outcome)}_x.npy'
+saved_dc_y = f'data/transformed_data/deconfounded/{dir_str}{scl}_{deconfound_flavor}_{"_".join(predicted_outcome)}_y.npy'
 
 if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
+
+    # Extracting confounds
+    if not not confound_names:
+        for c in confound_names:  # removing nan-valued confounds
+            cdata = cdata.dropna(dim=c)
+        confounds = cdata[confound_names]
+
+        if scale_confounds:  # scaling confounds ONLY according to train set
+            confounds = [x / np.max(np.abs(x[train_ind])) for x in confounds]
+
     if os.path.isfile(saved_dc_x):  # if data has already been deconfounded, load it
         print('Loading saved deconfounded matrices ...\n')
         dcdata = np.load(saved_dc_x)
@@ -103,7 +51,7 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
 
     else:  # if data hasn't been deconfounded, deconfound it
         print('Deconfounding data ...\n')
-        X_corr, Y_corr, nan_ind = deconfound_dataset(data=cdata, confounds=confounds,
+        X_corr, Y_corr, nan_ind = deconfound_dataset(data=cdata, confounds=confounds,  # TODO: update cdata as an array
                                                      set_ind=train_ind, outcome=outcome)
 
         dcdata = X_corr  # DeConfounded DATA
@@ -116,21 +64,21 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
         elif deconfound_flavor == 'X1Y0':
             Y = outcome
 
-    cdata = dcdata  # using deconfounded data for further analyses
+    cdata = dcdata  # using deconfounded data for further analyses # TODO: assign dcddata to cdata xarray
 
 elif deconfound_flavor == 'X0Y0':  # no changes to X data
     Y = outcome
     # np.save(saved_dc_x, cdata)
     # np.save(saved_dc_y, Y)
 
-# Setting up multiclass classification
-if multiclass and one_hot:  # Sets multiclass outcome as one-hot encoded targets
-    Y = multiclass_to_onehot(Y).astype(float)  # ensuresY is not of type object
+# Setting up multiclass classification with one-hot encoding
+if multiclass and one_hot:
+    Y = multiclass_to_onehot(Y).astype(float)  # ensures Y is not of type object
 
 ###################################################################
 # # Projecting matrices into positive definite
 ###################################################################
-
+# TODO: update for cdata as an xarray
 if data_to_use == 'positive definite' or data_to_use == 'tangent':
     # Test all matrices for positive definiteness
     num_notPD, which = areNotPD(cdata)
@@ -179,12 +127,6 @@ elif data_to_use == 'untransformed':
 elif data_to_use == 'positive definite':
     X = pddata
     del (cdata, pddata)
-
-# # exporting outcome as .xlsx file for parvathy's code
-# import pandas as pd
-# df = pd.DataFrame({'Subject': Subject.astype(int), 'Gender':Y[:,0]})
-# filepath = f'parvathy/Code/Data_labels/{list(dataDirs.keys())[list(dataDirs.values()).index(dataDir)]}{scl}_{deconfound_flavor}_{predicted_outcome}_y.xlsx'
-# df.to_excel(filepath, index=False)
 
 ############################################################################################
 # # TODO: implement shrinking of tangent space data, ?implement optimal shrinkage parameter

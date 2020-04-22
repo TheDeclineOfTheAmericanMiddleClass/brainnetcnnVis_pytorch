@@ -2,7 +2,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 import torch.utils.data.dataset
-import xarray as xr
 
 from analysis.load_model_data import *
 
@@ -24,29 +23,39 @@ class HCPDataset(torch.utils.data.Dataset):
 
         if self.mode == "train":
             if multi_input:
-                x = np.array(xr.merge([X[var].isel(dict(subject=train_ind)) for var in list(X.data_vars)]).to_array())
+                x = np.array(xr.merge([X[var].sel(dict(subject=train_subs)) for var in
+                                       chosen_datavars]).to_array())  # TODO: change to be only vars of interest
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
-                x = X[train_ind]
+                try:
+                    x = X[train_ind]
+                except KeyError:  # TODO: ensure KeyError is thrown
+                    x = np.array(X.sel(dict(subject=train_subs)).to_array().squeeze())
             y = Y[train_ind]
 
         elif self.mode == "test":
             if multi_input:
                 x = np.array(xr.merge(
-                    [X[var].isel(dict(subject=test_ind)) for var in list(X.data_vars)]).to_array())
+                    [X[var].sel(dict(subject=test_subs)) for var in chosen_datavars]).to_array())
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
-                x = X[test_ind]
+                try:
+                    x = X[test_ind]
+                except KeyError:
+                    x = np.array(X.sel(dict(subject=test_subs)).to_array().squeeze())
             y = Y[test_ind]
 
         elif mode == "valid":
             if multi_input:
                 x = np.array(
                     xr.merge(
-                        [X[var].isel(dict(subject=val_ind)) for var in list(X.data_vars)]).to_array())
+                        [X[var].sel(dict(subject=val_subs)) for var in chosen_datavars]).to_array())
                 x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
             else:
-                x = X[val_ind]
+                try:
+                    x = X[val_ind]
+                except KeyError:
+                    x = np.array(X.sel(dict(subject=val_subs)).to_array().squeeze())
             y = Y[val_ind]
 
         if multi_input:
@@ -301,7 +310,7 @@ class Usama_BNCNN(torch.nn.Module):
         out = out.view(out.size(0), -1)
         out = F.dropout(F.relu(self.dense1(out)), p=0.5)
         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-        if predicted_outcome == 'sex':
+        if predicted_outcome == 'Gender':
             out = torch.sigmoid(self.dense3(out))
         else:
             out = F.relu(self.dense3(out))
@@ -359,55 +368,6 @@ class Kawahara_BNCNN(torch.nn.Module):
         return out
 
 
-# # Kawahara Pervaiz's BrainNetCNN Network
-# class MultiInput_BNCNN(torch.nn.Module):
-#     def __init__(self, example):  # removed num_classes=10
-#         super(MultiInput_BNCNN, self).__init__()
-#         print('\nInitializing BNCNN: MultiInput, Kawahara Architecture')
-#         self.in_planes = example.size(1)
-#         self.d = example.size(3)
-#
-#         self.e2econv1 = E2EBlock(example.size(1), 32, example, bias=True)  # TODO: 2 inputs! Done! ?Must be same size?
-#         self.e2econv2 = E2EBlock(32, 32, example, bias=True)
-#         self.E2N = torch.nn.Conv2d(32, 64, (1, self.d))
-#         self.N2G = torch.nn.Conv2d(64, 256, (self.d, 1))
-#         self.dense1 = torch.nn.Linear(256, 128)
-#         self.dense2 = torch.nn.Linear(128, 30)
-#         self.batchnorm = torch.nn.BatchNorm1d(30)
-#         self.dense3 = torch.nn.Linear(30, num_outcome)
-#
-#         for m in self.modules():
-#             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
-#                 init.xavier_uniform_(m.weight)
-#             elif isinstance(m, nn.BatchNorm1d):
-#                 m.weight.data.fill_(1)
-#                 m.bias.data.zero_()
-#
-#     # # forward from paper figure 1.
-#     # def forward(self, x):
-#     #     out = F.dropout(F.leaky_relu(self.e2econv1(x), negative_slope=0.33), p=.5)
-#     #     out = F.dropout(F.leaky_relu(self.e2econv2(out), negative_slope=0.33), p=.5)
-#     #     out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
-#     #     out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
-#     #     out = out.view(out.size(0), -1)
-#     #     out = F.dropout(F.relu(self.dense1(out)), p=0.5)
-#     #     out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-#     #     out = F.relu(self.dense3(out))
-#
-#     # forward from section 2.3 description
-#     def forward(self, x):
-#         out = F.leaky_relu(self.e2econv1(x), negative_slope=0.33)
-#         out = F.leaky_relu(self.e2econv2(out), negative_slope=0.33)
-#         out = F.leaky_relu(self.E2N(out), negative_slope=0.33)
-#         out = F.dropout(F.leaky_relu(self.N2G(out), negative_slope=0.33), p=0.5)
-#         out = out.view(out.size(0), -1)
-#         out = F.relu(self.dense1(out))
-#         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-#         # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
-#         out = F.relu(self.dense3(out))
-#
-#         return out
-
 
 class FNN(nn.Module):
 
@@ -450,3 +410,26 @@ class FNN(nn.Module):
         x = self.fc2(x)
         x = self.fc3(x)
         return x
+
+
+# TODO: see if appropriate to place here
+if multi_outcome:
+    fl = num_outcome
+elif multiclass:
+    fl = num_classes
+else:
+    fl = 1  # TODO: see later that this works
+
+
+class FC90Net_YeoSex(torch.nn.Module):
+    def __init__(self, example):
+        super(FC90Net_YeoSex, self).__init__()
+        self.dense1 = torch.nn.Linear(num_input, 3, example)
+        self.dense2 = torch.nn.Linear(3, fl)
+
+    def forward(self, x):
+        out = F.dropout(F.leaky_relu(self.dense1(x), negative_slope=.33), p=.00275)
+        out = out.view(out.size(0), -1)
+        out = F.leaky_relu(self.dense2(out), negative_slope=.33)
+
+        return out

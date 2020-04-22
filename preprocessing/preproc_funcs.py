@@ -23,17 +23,17 @@ def read_dem_data(subnums):
     behavioral = pd.read_csv('data/hcp/behavioral.csv')
     restricted = pd.read_csv('data/hcp/restricted.csv')
 
-    # Specifying indices of overlapping subjects in 1206 and 1003 subject datasets
+    # Specifying indices of overlapping subjects with subnums
     subInd = np.where(np.isin(restricted["Subject"], subnums))[0]
 
-    # Only using data from 1003
+    # Only using data from subnums
     restricted = restricted.reindex(subInd)
     behavioral = behavioral.reindex(subInd)
 
     return restricted, behavioral
 
 
-# read face-emotional data from HCP900 cohort
+# read face-emotional data from HCP900 dataset
 def read_HCP900_data():
     filepath = 'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.mat'
     taskdata = {}
@@ -102,6 +102,14 @@ def read_mat_data(dataDir, toi=[]):
         data = arr2mat_HCP900(taskCorr, toi, taskdata, r_transform=False)
         subnums = list(taskIDs)
 
+    elif dataDir == 'data/Send_to_Tim/HCP_IMAGEN_ID_mega_file.txt':
+        mega_vars = np.loadtxt(dataDir, delimiter=',', dtype=str, max_rows=1)
+        mega_subs = np.loadtxt(dataDir, delimiter=',', dtype=str, usecols=0, skiprows=1)
+        mega_hcp_inds = np.argwhere([file.startswith('HCP') for file in mega_subs]).squeeze()
+        data = np.loadtxt(dataDir, delimiter=',', skiprows=1, usecols=range(1, len(mega_vars) - 1))[
+            mega_hcp_inds]  # TODO: add option to use IMAGEN data later
+        subnums = [int(name[-6:]) for name in mega_subs[mega_hcp_inds]]
+
     else:
         filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
         filenames.sort()
@@ -127,26 +135,6 @@ def read_mat_data(dataDir, toi=[]):
                     subnums.append(sn)  # taking subnums from file
 
                 data.append(n1)
-
-        # for i, filename in enumerate(filenames):
-        #     if filenames[0].endswith('.npy'):  # for .npy files, given priority
-        #         data = list(np.load(f'{dataDir}/{filename}'))
-        #
-        #     elif filenames[0].endswith('.txt'):  # for .txt file
-        #         # with open(f'{dataDir}/{filename}', 'rb') as f:
-        #         #     tf = f.read().decode(errors='replace')
-        #         tf = np.loadtxt(f'{dataDir}/{filename}')
-        #         data.append(tf)
-        #     else:  # for .h5py files
-        #         hf = h5py.File(f'{dataDir}/{filename}', 'r')
-        #         n1 = np.array(hf["CorrMatrix"][:])
-        #         data.append(n1)
-
-    # # for netmats1.txt processing...
-    # # changing filenames for 1003 subject numbers to readable
-    # if data.shape[0] == 1003:
-    #     dataDir = 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE'
-    #     filenames = [f for f in listdir(dataDir) if isfile(join(dataDir, f))]
 
     if not subnums:  # if subnums still an empty list
         for i, filename in enumerate(filenames):  # reading in subnums

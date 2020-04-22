@@ -13,15 +13,15 @@ alloc_data[:] = np.nan
 global performance
 
 if multi_outcome:
-    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, outcome_names],
+    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
                                dims=['epoch', 'set', 'metrics', 'outcome'])
 else:
-    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, [outcome_names]],
+    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
                                dims=['epoch', 'set', 'metrics', 'outcome'])
 
 
 def main():
-    print('Using data: ', chosen_dir, '\n')
+    print('Using data: ', chosen_dir, '\n Predicting:', predicted_outcome)
 
     # # initializing weights
     # net.apply(init_weights_he)
@@ -30,12 +30,12 @@ def main():
     preds, y_true, loss_test = test()
 
     if multi_outcome:  # calculate predictive performance of multiple variables
-        mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))])
-        pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))])
+        mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(predicted_outcome))])
+        pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(predicted_outcome))])
         print("Init Network")
-        for i in range(len(outcome_names)):
+        for i in range(len(predicted_outcome)):
             print(
-                f"Test Set, {outcome_names[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
+                f"Test Set, {predicted_outcome[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
 
     elif multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
@@ -68,16 +68,16 @@ def main():
         print("\nEpoch %d" % epoch)
 
         if multi_outcome:
-            mae_all, trainmae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(outcome_names))]), \
-                                    np.array([mae(trainy[:, i], trainp[:, i]) for i in range(len(outcome_names))])
+            mae_all, trainmae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(predicted_outcome))]), \
+                                    np.array([mae(trainy[:, i], trainp[:, i]) for i in range(len(predicted_outcome))])
             pears_all, trainpears_all = np.array(
-                [list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(outcome_names))]), \
+                [list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(predicted_outcome))]), \
                                         np.array([list(pearsonr(trainy[:, i], trainp[:, i])) for i in
-                                                  range(len(outcome_names))])
+                                                  range(len(predicted_outcome))])
 
-            for i in range(len(outcome_names)):
+            for i in range(len(predicted_outcome)):
                 print(
-                    f"{outcome_names[i]} : Test MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02} (p = {pears_all[i, 1]:.02})")
+                    f"{predicted_outcome[i]} : Test MAE : {mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02} (p = {pears_all[i, 1]:.02})")
 
             performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = [mae_all,
                                                                                                       pears_all[:, 0],
@@ -92,7 +92,7 @@ def main():
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
             acc, trainacc = accuracy_score(preds, y_true), accuracy_score(trainp, trainy)
 
-            print(f"{outcome_names}, Test accuracy : {acc:.02}")
+            print(f"{predicted_outcome}, Test accuracy : {acc:.02}")
 
             performance.loc[dict(epoch=epoch, set="test", metrics=['accuracy'])] = acc
             performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'])] = trainacc
@@ -100,16 +100,17 @@ def main():
         elif not multi_outcome and not multiclass:
             mae_1, trainmae_1 = mae(preds, y_true), mae(trainp, trainy)
             pears_1, trainpears_1 = pearsonr(preds[:, 0], y_true[:, 0]), pearsonr(trainp[:, 0], trainy[:, 0])
-            print(f"{outcome_names} : Test MAE : {mae_1:.02}, Test pearson R: {pears_1[0]:.02} (p = {pears_1[1]:.04})")
+            print(
+                f"{predicted_outcome} : Test MAE : {mae_1:.02}, Test pearson R: {pears_1[0]:.02} (p = {pears_1[1]:.04})")
 
-            performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = [mae_1,
-                                                                                                      pears_1[0],
-                                                                                                      pears_1[1]]
-            performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'])] = [trainmae_1,
-                                                                                                       trainpears_1[0],
-                                                                                                       trainpears_1[1]]
+            performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = np.array(
+                [mae_1, pears_1[0], pears_1[1]])[:, None]
+            performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'])] = np.array(
+                [trainmae_1,
+                 trainpears_1[0],
+                 trainpears_1[1]])[:, None]
 
-        ####################
+        ####################u
         ## EARLY STOPPING ##
         ####################
         # Checking every ep_int epochs. If there is no improvement on performance metrics, stop training
