@@ -310,8 +310,8 @@ def PD_transform(datamats):
         if not isPD(pddata[i]):
             print(f'Matrix {i} is not positive definite!')
             npd_count += 1
-        if i % 199 == 0:
-            print(f'Attempting to make {i}/{len(pddata)} matrices positive definite...')
+        if i % 200 == 0:
+            print(f'Making making matrix {i}/{len(pddata)} positive definite...')
     print(f'PD_transform successfully transformed {len(datamats) - npd_count} matrices\n')
     return pddata
 
@@ -481,8 +481,8 @@ def tangent_transform(refmats, projectmats, ref='euclidean'):
     Implementation from dadi et al., 2019. Source: https://hal.inria.fr/hal-01824205v3
     Calculation of reference means from Pervaiz et al., 2019. https://www.biorxiv.org/content/10.1101/741595v2.full.pdf
 
-    :param projectmats: positive definite matrices to be projected into tangent space
     :param refmats: positive definite covariance matrices (samples x rows x columns), from which mean is calculated
+    :param projectmats: positive definite matrices to be projected into tangent space
     :param ref: reference mean to use (i.e. euclidean, harmonic, log euclidean, riemannian, kullback)
     :return: tangent-projected matrices
     """
@@ -510,7 +510,7 @@ def tangent_transform(refmats, projectmats, ref='euclidean'):
         m = np.dot(wsStar, x).dot(wsStar)
         m = m.reshape(mag, mag)
         if i % 199 == 0:
-            print(f'Projecting {i}/{len(tmats)} matrices into tangent space...')
+            print(f'Projecting matrix {i}/{len(tmats)} into tangent space...')
         tmats[i] = logm(m)
 
     return tmats

@@ -79,13 +79,10 @@ brx = xr.merge([restricted[r_vars].to_xarray(), behavioral[b_vars].to_xarray()],
 brx = brx.rename_dims({'Subject': 'subject'})
 cdata = xr.merge([cdata, brx], join='inner')  # finding intersection
 cdata = cdata.dropna(dim='subject')  # dropping nan values
+subnums = cdata.subject.values
+
+# removing edge betweeness from mega file data
+if 'Johann_mega_graph' in chosen_Xdatavars and not edge_betweenness:
+    cdata = cdata.drop_sel(dim1=[f'node {x}' for x in range(1586, len(cdata.dim1.values))])
 
 # cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc') # Saving when necessary
-
-# setting keys for xarray data variables
-chosen_datavars = chosen_dir.copy()
-if np.isin(chosen_datavars, 'HCP_alltasks_268')[0]:
-    chosen_datavars.remove('HCP_alltasks_268')
-    for task in chosen_tasks:
-        datavar = f'HCP_alltasks_268_{task}'
-        chosen_datavars.append(datavar)

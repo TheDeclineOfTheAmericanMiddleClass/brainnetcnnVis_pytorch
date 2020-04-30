@@ -21,7 +21,7 @@ else:
 
 
 def main():
-    print('Using data: ', chosen_dir, '\n Predicting:', predicted_outcome)
+    print('Using data: ', chosen_dir, '\n Predicting:', ", ".join(predicted_outcome))
 
     # # initializing weights
     # net.apply(init_weights_he)

@@ -30,17 +30,17 @@ tasks = {'rest1': 'rfMRI_REST1',
 # Degrees of freedom in the model input/output
 chosen_dir = ['HCP_alltasks_268']  # list of data keys for training
 chosen_tasks = list(tasks.keys())[
-               :-1]  # ['NA'] # list of 'HCP_alltasks_268' tasks for training; set to ['NA'] if directory unused
-predicted_outcome = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A',
-                     'NEOFAC_N']  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs'
+               :-1]  # list of 'HCP_alltasks_268' tasks for training; set to ['NA'] if directory unused
+predicted_outcome = ['Age_in_Yrs']  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs'
 one_hot = True  # only relevant for classification-based outcomes (i.e. sex)
-data_to_use = 'untransformed'  # 'positive definite', 'untransformed', 'tangent' # TODO: implement transformations for multi-input/xarray data
-tan_mean = 'euclidean'  # euclidean, harmonic
-deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0' # TODO: implement for multi-input/xarray data
-confound_names = None  # ['Weight','Height','Handedness', 'Age_in_Yrs', 'PSQI_Score'] # (sleep quality)
-scale_confounds = False  # whether confound are scaled by confound's max value in training set
-architecture = 'usama'  # 'yeo_sex', 'kawahara', 'usama', 'parvathy_v2', 'FC90Net'
+transformations = 'tangent'  # 'positive definite', 'untransformed', 'tangent'
+tan_mean = 'harmonic'  # euclidean, harmonic
+deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0' # TODO: implement X1Y1 multi-input/xarray data
+confound_names = None  # ['Weight','Height','Handedness', 'Age_in_Yrs', 'PSQI_Score'], None
+scale_confounds = True  # whether confound are scaled by trainset confounds's max value
+architecture = 'usama'  # 'yeo_sex', 'kawahara', 'usama', 'parvathy_v2', 'FC90Net', 'yeo_58'
 optimizer = 'sgd'  # 'sgd', 'adam'
+edge_betweenness = False
 
 # Hyper parameters for training
 momentum = 0.9  # momentum
@@ -50,9 +50,10 @@ max_norm = 1.5  # maximum value of normed gradients, to prevent explosion/vanish
 
 # Epochs over which the network is trained
 nbepochs = 300  # number of epochs to run
-early = True  # early stopping or nah
+early = False  # early stopping or nah
 ep_int = 5  # early stopping interval
 min_ep = 50  # minimum epochs after which to check for stagnation in learning
+cv_folds = 5  # cross validation folds, for shallow networks
 
 # various measures of interest from the HCP dataset
 r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
@@ -63,7 +64,7 @@ b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Scor
 ################################################
 
 # setting number of classes per outcome
-if predicted_outcome == 'Gender':
+if predicted_outcome == ['Gender']:
     num_classes = 2
 else:
     num_classes = 1
@@ -100,8 +101,25 @@ if num_input == 1:
 else:
     multi_input = True
 
-# logic for
+# logic for transformations, etc.
 if chosen_dir == ['Johann_mega_graph']:
     data_are_matrices = False
 else:
     data_are_matrices = True
+
+# setting keys for xarray data variables
+chosen_Xdatavars = chosen_dir.copy()
+if 'HCP_alltasks_268' in chosen_Xdatavars:
+    chosen_Xdatavars.remove('HCP_alltasks_268')
+    for task in chosen_tasks:
+        datavar = f'HCP_alltasks_268_{task}'
+        chosen_Xdatavars.append(datavar)
+
+# # TODO: later, implement read in of array + matrix data
+# # logic for transformations, etc.
+# data_are_matrices = []
+# for datavar in chosen_Xdatavars:
+#     if chosen_dir == ['Johann_mega_graph']:
+#         data_are_matrices.append(False)
+#     else:
+#         data_are_matrices.append(True)

@@ -135,30 +135,44 @@ def plot_model_results(allloss_train=[], allloss_test=[], allmae_test=[], allpea
         # TODO: enable plot model results to do accuracy/multi-class as well
 
 
-plot_model_results(allloss_train=losses_train,
-                   allloss_test=losses_test,
-                   allmae_test=maes_test,
-                   allpears_test=pears_test,
-                   allacc_test=accs_test,
-                   arc=architecture,
-                   predicted_outcome=predicted_outcome,
-                   outcome_names=outcome_names,
-                   deconfound_flavor=deconfound_flavor,
-                   scl=scl,
-                   input_data=f'{list(directories.keys())[list(directories.values()).index(dataDir)]}',
-                   transformations=data_to_use,
-                   ep_int=ep_int,
-                   es=True)
+#
+# plot_model_results(allloss_train=losses_train,
+#                    allloss_test=losses_test,
+#                    allmae_test=maes_test,
+#                    allpears_test=pears_test,
+#                    allacc_test=accs_test,
+#                    arc=architecture,
+#                    predicted_outcome=predicted_outcome,
+#                    outcome_names=predicted_outcome,
+#                    deconfound_flavor=deconfound_flavor,
+#                    scl=scl,
+#                    input_data=chosen_Xdatavars,
+#                    transformations=transformations,
+#                    ep_int=ep_int,
+#                    es=True)
 
-# # PRINTING RESULTS TO CONSOLE
-# colhs = ['BrainNetCNN,', 'ElasticNet', 'SVM']
-# rowhs = ['pearson r', 'mean absolute error']
-# tabel = np.array([[f'{allpears_test1[-1]:.2}, p-value: {pears_1[1]:.2}', f'{elastic_r:.2}, p-value: {elastic_p:.2}',
-#                    f'{svm_r:.2}, p-value: {svm_p:.2}'],
-#                   [f'{allmae_test1[-1]:.2}', f'{elastic_mae:.2}', f'{svm_mae:.2}']])
-#
-# for i, x in enumerate(colhs):
-#     for j, y in enumerate(rowhs):
-#         print(f'{x} {y}: {tabel[j, i]}')
-#     print('')
-#
+
+metrics = ['MAE', 'pearsonR', 'loss']
+fig, axs = plt.subplots(nrows=len(performance.outcome.values), ncols=len(metrics),
+                        figsize=(len(metrics) * 6, len(performance.outcome.values) * 2), sharex=True)
+fig.subplots_adjust(wspace=.2, hspace=.2, top=.9, bottom=.05)
+axs = axs.ravel()
+fig.suptitle(f"BrainNetCNN trained to predict {', '.join(predicted_outcome)} \nfrom {', '.join(chosen_Xdatavars)}")
+
+count = 0
+
+for j, outcome in enumerate(performance.outcome.values):
+    for i, metric in enumerate(metrics):
+
+        axs[count].plot(performance.loc[dict(set='train', metrics=metric, outcome=outcome)].values.squeeze(),
+                        label='train')
+        axs[count].plot(performance.loc[dict(set='test', metrics=metric, outcome=outcome)].values.squeeze(),
+                        label='test')
+        axs[count].set_title(f"{outcome}, {metric}")
+        axs[count].set_ylabel(f'{metric}')
+        axs[count].legend()
+
+        if j == len(performance.outcome.values) - 1:
+            axs[count].set_xlabel('epochs')
+
+        count += 1

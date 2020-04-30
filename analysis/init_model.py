@@ -13,9 +13,9 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, n
 valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
 
 # Creating the model
-if predicted_outcome == 'Gender' and architecture == 'yeo_sex':
+if predicted_outcome == ['Gender'] and architecture == 'yeo_sex':
     net = YeoSex_BNCNN(trainset.X)
-elif predicted_outcome == 'Gender' and architecture == 'parvathy_v2':
+elif predicted_outcome == ['Gender'] and architecture == 'parvathy_v2':
     net = ParvathySex_BNCNN_v2byAdu(trainset.X)
 # elif predicted_outcome == 'Gender' and architecture == 'parvathy_orig':
 #     net = ParvathySex_BNCNN_original(e2e=16, e2n=128, n2g=26, f_size=trainset.X.shape[3], dropout=.6)
@@ -25,8 +25,11 @@ elif architecture == 'usama':
     net = Usama_BNCNN(trainset.X)
 elif architecture == 'FC90Net':
     net = FC90Net_YeoSex(trainset.X)
+elif architecture == 'yeo_58':
+    net = Yeo58behaviors_BNCNN(trainset.X)
 else:
-    print(f'"{architecture}" architecture not available. Using default \'usama\' architecture...\n')
+    print(
+        f'"{architecture}" architecture not available for outcome(s) {", ".join(predicted_outcome)}. Using default \'usama\' architecture...\n')
     net = Usama_BNCNN(trainset.X)
 
 # Putting the model on the GPU

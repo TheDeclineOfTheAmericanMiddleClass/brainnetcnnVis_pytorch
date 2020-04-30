@@ -1,25 +1,33 @@
 from sklearn import neural_network, svm
 from sklearn.linear_model import ElasticNet, SGDClassifier, MultiTaskElasticNet
 from sklearn.model_selection import cross_validate
+from sklearn.preprocessing import MaxAbsScaler
 
 from analysis.load_model_data import *
 from preprocessing.preproc_funcs import *
 
+scale_features = True
+
+subs = train_subs.tolist() + test_subs.tolist() + val_subs.tolist()
+inds = train_ind.tolist() + test_ind.tolist() + val_ind.tolist()
+
 # creating data arrays to be trained on
 if data_are_matrices:
-    shallowX_train = np.concatenate([X[var].sel(dict(subject=train_subs)).values[:,
+    shallowX_train = np.concatenate([X[var].sel(dict(subject=subs)).values[:,
                                      np.triu_indices_from(X[var][0], k=1)[0], np.triu_indices_from(X[var][0], k=1)[1]]
-                                     for var in X.keys()], axis=1)
+                                     for var in chosen_Xdatavars], axis=1)
 
 elif not data_are_matrices:
-    shallowX_train = X[list(X.data_vars)[0]][train_ind].values
+    shallowX_train = X[chosen_Xdatavars[0]][inds].values
 
-shallowY_train = Y[train_ind]
-shallowY_test = Y[test_ind]
+    if scale_features:  # TODO: fix so only training data used to fit scaler in CV loop
+        scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][train_ind.tolist()].values)
+        shallowX_train = scaler.transform(shallowX_train)
+
+shallowY_train = Y[inds]
 
 if multiclass:  # transforming one_hot encoded Y-data back into multiclass
     shallowY_train = onehot_to_multiclass(shallowY_train)
-    shallowY_test = onehot_to_multiclass(shallowY_test)
 
 # defining regression scoring methods
 # scoring = dict(zip(['mae','r2'], [make_scorer(mean_absolute_error, multioutput='raw_values'), 'r2']))
@@ -37,14 +45,14 @@ def train_SVM():
     elif multiclass:
         # clf = SGDClassifier(verbose=True, random_state=1234)
         clf = svm.SVC(kernel='linear', gamma='scale', verbose=True, random_state=1234)
-        cv_results = cross_validate(clf, shallowX_train, shallowY_train, cv=5,
+        cv_results = cross_validate(clf, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=['balanced_accuracy'],
                                     verbose=True)
 
     else:
         clf = svm.SVR(kernel='linear', gamma='scale',
-                      verbose=True)  # TODO: look deeper into bad input shape for multioutcome data (i.e. personality)
-        cv_results = cross_validate(clf, shallowX_train, shallowY_train, cv=5,
+                      verbose=True)
+        cv_results = cross_validate(clf, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=scoring,
                                     verbose=True)
 
@@ -66,8 +74,10 @@ def train_FC90net():
         fl = 1  # TODO: see later that this works
 
     if multiclass:
-        FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=(3, fl),
-                                               # age (9, 1), sex (3, 2), ? (shallowX_train.shape[-1], 90)
+        if predicted_outcome == ['Gender']:
+            hl_sizes = (3, fl)
+
+        FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=hl_sizes,
                                                max_iter=500,
                                                solver='sgd',
                                                learning_rate='constant',
@@ -79,13 +89,31 @@ def train_FC90net():
                                                tol=1e-4,
                                                n_iter_no_change=10,
                                                random_state=1234)
-        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=5,
+        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=['balanced_accuracy'],
                                     verbose=True)
 
-    else:  # TODO: make sure this works for single-class, single-outcome
-        FC90Net = neural_network.MLPRegressor(verbose=True, random_state=1234)
-        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=5,
+    else:
+        hl_sizes = (9, fl)
+        # if np.any([po in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N'] for po in predicted_outcome]):
+        #     hl_sizes = (223, 128, 192, fl)  # per He et al. 2019, 58 behavior prediction
+        if predicted_outcome == ['Age_in_Yrs']:
+            hl_sizes = (9, fl)  # per He et al. 2019, age prediction
+
+        FC90Net = neural_network.MLPRegressor(  # hidden_layer_sizes=hl_sizes,
+            max_iter=500,
+            solver='sgd',
+            learning_rate='constant',
+            learning_rate_init=lr,
+            momentum=momentum,
+            activation='relu',
+            verbose=True,
+            early_stopping=False,
+            tol=1e-4,
+            n_iter_no_change=10,
+            random_state=1234)
+
+        cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=scoring,
                                     verbose=True)
 
@@ -100,19 +128,19 @@ def train_ElasticNet():
     if multiclass:
         regr = SGDClassifier(penalty='elasticnet', l1_ratio=.5,  # logistic regression with even L1/L2 penalty
                              random_state=1234)
-        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=5,
+        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=['balanced_accuracy'],
                                     verbose=True)
 
     # TODO: see if I should use multitaskCV here for multioutput problems
     elif multi_outcome:
         regr = MultiTaskElasticNet(random_state=1234)
-        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=5,
+        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=scoring,
                                     verbose=True)
     else:
         regr = ElasticNet(random_state=1234)
-        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=5,
+        cv_results = cross_validate(regr, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=scoring,
                                     verbose=True)
 
@@ -122,10 +150,20 @@ def train_ElasticNet():
 
 
 # Training Networks
-print(f'Training shallow networks to predict {predicted_outcome}, from data in {list(X.keys())}...\n')
+print(f'Training shallow networks to predict {", ".join(predicted_outcome)}, from data in {chosen_Xdatavars}...\n')
 
-# SVM_cv_results = train_SVM()
+FC90_cv_results = train_FC90net()
+
+SVM_cv_results = train_SVM()
 
 Elastic_cv_results = train_ElasticNet()
 
-# FC90_cv_results = train_FC90net()
+# formatting a printing results
+float_formatter = "{:.3f}".format
+np.set_printoptions(formatter={'float_kind': float_formatter})
+
+for results in [FC90_cv_results, Elastic_cv_results, SVM_cv_results]:
+    if multiclass:
+        print(-np.mean(results['balanced_accuracy']))
+    else:
+        print(-np.mean(results['test_neg_mean_absolute_error']), np.mean(results['test_r2']))

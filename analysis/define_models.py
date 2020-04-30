@@ -22,41 +22,18 @@ class HCPDataset(torch.utils.data.Dataset):
         # X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
 
         if self.mode == "train":
-            if multi_input:
-                x = np.array(xr.merge([X[var].sel(dict(subject=train_subs)) for var in
-                                       chosen_datavars]).to_array())  # TODO: change to be only vars of interest
-                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
-            else:
-                try:
-                    x = X[train_ind]
-                except KeyError:  # TODO: ensure KeyError is thrown
-                    x = np.array(X.sel(dict(subject=train_subs)).to_array().squeeze())
+            x = xr.merge([X[var].sel(dict(subject=train_subs)) for var in chosen_Xdatavars]).to_array().values
             y = Y[train_ind]
 
         elif self.mode == "test":
-            if multi_input:
-                x = np.array(xr.merge(
-                    [X[var].sel(dict(subject=test_subs)) for var in chosen_datavars]).to_array())
-                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
-            else:
-                try:
-                    x = X[test_ind]
-                except KeyError:
-                    x = np.array(X.sel(dict(subject=test_subs)).to_array().squeeze())
+            x = xr.merge([X[var].sel(dict(subject=test_subs)) for var in chosen_Xdatavars]).to_array().values
             y = Y[test_ind]
 
         elif mode == "valid":
-            if multi_input:
-                x = np.array(
-                    xr.merge(
-                        [X[var].sel(dict(subject=val_subs)) for var in chosen_datavars]).to_array())
-                x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1])
-            else:
-                try:
-                    x = X[val_ind]
-                except KeyError:
-                    x = np.array(X.sel(dict(subject=val_subs)).to_array().squeeze())
+            x = xr.merge([X[var].sel(dict(subject=val_subs)) for var in chosen_Xdatavars]).to_array().values
             y = Y[val_ind]
+
+        x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1]).squeeze()
 
         if multi_input:
             self.X = torch.FloatTensor(x)
@@ -214,19 +191,6 @@ class ParvathySex_BNCNN_v2byAdu(torch.nn.Module):
 
         return out
 
-    # def predict(self, x):
-    #     """This function takes an input and predicts the class, (0 or 1)"""
-    #     # Apply softmax to output.
-    #     pred = F.softmax(self.forward(x))
-    #     ans = []
-    #     # Pick the class with maximum weight
-    #     for t in pred:
-    #         if t[0] > t[1]:
-    #             ans.append(0)
-    #         else:
-    #             ans.append(1)
-    #     return torch.tensor(ans)
-
 
 # Yeo-version BNCNN for Multiclass Sex Classification (output = num_classes)
 class YeoSex_BNCNN(torch.nn.Module):
@@ -261,19 +225,6 @@ class YeoSex_BNCNN(torch.nn.Module):
         out = torch.sigmoid(self.dense1(out))
 
         return out
-
-    # def predict(self, x):
-    #     """This function takes an input and predicts the class, (0 or 1)"""
-    #     # Apply softmax to output.
-    #     pred = F.softmax(self.forward(x))
-    #     ans = []
-    #     # Pick the class with maximum weight
-    #     for t in pred:
-    #         if t[0] > t[1]:
-    #             ans.append(0)
-    #         else:
-    #             ans.append(1)
-    #     return torch.tensor(ans)
 
 
 # Usama Pervaiz's BrainNetCNN Network
@@ -310,7 +261,8 @@ class Usama_BNCNN(torch.nn.Module):
         out = out.view(out.size(0), -1)
         out = F.dropout(F.relu(self.dense1(out)), p=0.5)
         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-        if predicted_outcome == 'Gender':
+
+        if multiclass:
             out = torch.sigmoid(self.dense3(out))
         else:
             out = F.relu(self.dense3(out))
@@ -412,24 +364,55 @@ class FNN(nn.Module):
         return x
 
 
-# TODO: see if appropriate to place here
-if multi_outcome:
-    fl = num_outcome
-elif multiclass:
-    fl = num_classes
-else:
-    fl = 1  # TODO: see later that this works
-
 
 class FC90Net_YeoSex(torch.nn.Module):
     def __init__(self, example):
         super(FC90Net_YeoSex, self).__init__()
         self.dense1 = torch.nn.Linear(num_input, 3, example)
-        self.dense2 = torch.nn.Linear(3, fl)
+        self.dense2 = torch.nn.Linear(3, 2)
 
     def forward(self, x):
         out = F.dropout(F.leaky_relu(self.dense1(x), negative_slope=.33), p=.00275)
         out = out.view(out.size(0), -1)
         out = F.leaky_relu(self.dense2(out), negative_slope=.33)
+
+        return out
+
+
+# Yeo-version BNCNN for 58 HCP behavior prediction
+class Yeo58behaviors_BNCNN(torch.nn.Module):
+
+    # https://www.sciencedirect.com/science/article/pii/S1053811919308675?via%3Dihub#appsec1
+
+    def __init__(self, example):
+        super(Yeo58behaviors_BNCNN, self).__init__()
+        print('\nInitializing BNCNN: Yeo_58_behaviors Architecture...')
+        self.in_planes = example.size(1)
+        self.d = example.size(3)
+
+        self.e2econv1 = E2EBlock(example.size(1), 18, example, bias=True)
+        self.E2N = torch.nn.Conv2d(18, 19, (1, self.d))
+        self.N2G = torch.nn.Conv2d(19, 84, (self.d, 1))
+
+        if multiclass:
+            self.dense1 = torch.nn.Linear(84, num_classes)
+        else:
+            self.dense1 = torch.nn.Linear(84, num_outcome)
+
+        for m in self.modules():  # initializing weights
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+                init.xavier_uniform_(m.weight)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+        print('BNCNN instance initialized.\n')
+
+    def forward(self, x):
+        out = F.dropout(self.e2econv1(x), p=0.463)
+        out = F.dropout(self.E2N(out), p=0.463)
+        out = F.dropout(self.N2G(out), p=0.463)
+        out = out.view(out.size(0), -1)
+        out = self.dense1(out)
 
         return out
