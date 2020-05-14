@@ -4,22 +4,19 @@ from preprocessing.degrees_of_freedom import *
 from preprocessing.preproc_funcs import *
 from preprocessing.read_data import subnums, cdata
 
-cdata['Gender'] = xr.DataArray(pd.get_dummies(cdata.Gender.values).F,
-                               coords=dict(subject=cdata['Gender'].subject.values),
-                               dims='subject')  # transforming 'gender' to dummy variables
-
-outcome = np.array([cdata[x].values for x in predicted_outcome],
-                   dtype=float).squeeze().T  # Setting variable for network to predict
+if multiclass:  # TODO: later, implement logic for deconfounding with (multiclass + continuous) outcomes
+    outcome = np.where(np.array([pd.get_dummies(cdata[x].values, dtype=bool).to_numpy()
+                                 for x in predicted_outcome]).squeeze())[1].astype(float)
+else:
+    outcome = np.array([cdata[x].values for x in predicted_outcome],
+                       dtype=float).squeeze().T  # Setting variable for network to predict
 
 ###############################################################
 # Defining train, test, validaton sets with Parvathy's partitions
 ###############################################################
-final_test_list = np.loadtxt('Subject_Splits/final_test_list.txt')
-final_train_list = np.loadtxt('Subject_Splits/final_train_list.txt')
-final_val_list = np.loadtxt('Subject_Splits/final_val_list.txt')
-train_subs, train_ind, _ = np.intersect1d(subnums, final_train_list, return_indices=True)
-val_subs, val_ind, _ = np.intersect1d(subnums, final_val_list, return_indices=True)
-test_subs, test_ind, _ = np.intersect1d(subnums, final_test_list, return_indices=True)
+train_subs, train_ind, _ = np.intersect1d(subnums, np.loadtxt(train_subnum_path), return_indices=True)
+val_subs, val_ind, _ = np.intersect1d(subnums, np.loadtxt(val_subnum_path), return_indices=True)
+test_subs, test_ind, _ = np.intersect1d(subnums, np.loadtxt(test_subnum_path), return_indices=True)
 
 print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets '
       f'({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
@@ -95,7 +92,7 @@ if data_are_matrices:
             pd_var = f'pd_{datavar}'  # name for positive definite transformed mats
 
             if pd_var in list(cdata.data_vars):  # check if positive definite dataset already saved in xarray
-                break
+                continue
 
             else:
                 num_notPD, which = areNotPD(cdata[datavar].values)  # Test all matrices for positive definiteness
@@ -134,12 +131,13 @@ if data_are_matrices:
             #     np.save(saved_tan, tdata)
 
             if tan_var in list(cdata.data_vars):  # check if positive definite dataset already saved in xarray
-                break
+                continue
 
             print('Transforming all matrices into tangent space ...')
-            cdata = cdata.assign({tan_var: cdata[pd_var]})
-            X_tan = tangent_transform(refmats=cdata[pd_var].loc[dict(subject=train_subs)],  # tangent only from trainset
-                                      projectmats=cdata[pd_var].values,
+            cdata = cdata.assign({tan_var: cdata[datavar]})
+            X_tan = tangent_transform(refmats=cdata[datavar].loc[dict(subject=train_subs)],
+                                      # tangent only from trainset
+                                      projectmats=cdata[datavar].values,
                                       ref=tan_mean)
 
             cdata[tan_var] = xr.DataArray(X_tan,

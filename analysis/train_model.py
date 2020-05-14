@@ -145,6 +145,36 @@ def main():
 if __name__ == "__main__":
     main()
 
-# adding stop epoch to xarray
-performance = performance.assign_coords(stop_int=epoch - ep_int)
+import datetime
+
+rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
+
+model_preamble = f"BNCNN_{architecture}_{'_'.join(predicted_outcome)}_{'_'.join(chosen_Xdatavars)}" \
+                 f"_{transformations}_{deconfound_flavor}{scl}__es{ep_int}_" + rundate
+
+# Save trained model parameters
+filename_model = model_preamble + '_model.pt'
+torch.save(net, f'models/{filename_model}')
+
+# Save trained model performance
+performance = performance.assign_coords(stop_int=epoch - ep_int)  # adding early stop epoch to xarray
 performance = performance.expand_dims('stop_int')
+performance = performance.assign_coords(rundate=rundate)  # adding rundate to xarray
+performance = performance.expand_dims('rundate')
+filename_performance = model_preamble + '_performance.nc'
+performance.name = filename_performance  # updating xarray name internally
+
+performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
+
+# Print best test-set results
+if multiclass:
+    best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
+else:
+    best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
+
+print(f'\nBest test performance'
+      f'\nepoch: {best_test_epoch}'
+      f"\nMAE: {performance.loc[dict(set='test', metrics='MAE', epoch=best_test_epoch)].values.squeeze()}"
+      f"\npearson R: {performance.loc[dict(set='test', metrics='pearsonR', epoch=best_test_epoch)].values.squeeze()}"
+      f"\npearson p-value: {performance.loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
+      f"\naccuracy: {performance.loc[dict(set='test', metrics='accuracy', epoch=best_test_epoch)].values.squeeze()}")

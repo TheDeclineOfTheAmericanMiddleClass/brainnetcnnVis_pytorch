@@ -52,8 +52,8 @@
 # dataDir = 'data/self_created_HCP_mats/ICA300_corr'
 # # dataDir = 'data/self_created_HCP_mats/ICA300_rho50_pcorr' # 3 non-PD matrices
 # cdata, subnums = read_mat_data(dataDir)
-# final_train_list = np.loadtxt('Subject_Splits/final_train_list.txt')
-# train_ind = np.where(np.isin(subnums, final_train_list))[0]
+# train_subnums = np.loadtxt('Subject_Splits/train_subnums.txt')
+# train_ind = np.where(np.isin(subnums, train_subnums))[0]
 #
 # # Confound info
 # restricted, behavioral = read_dem_data(subnums)

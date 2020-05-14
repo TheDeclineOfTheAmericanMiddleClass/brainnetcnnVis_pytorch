@@ -28,12 +28,11 @@ tasks = {'rest1': 'rfMRI_REST1',
          'NA': ''}
 
 # Degrees of freedom in the model input/output
-chosen_dir = ['HCP_alltasks_268']  # list of data keys for training
-chosen_tasks = list(tasks.keys())[
-               :-1]  # list of 'HCP_alltasks_268' tasks for training; set to ['NA'] if directory unused
+chosen_dir = ['HCP_rsfc_pCorr01_264']  # list of data keys for training
+chosen_tasks = ['NA']  # list of 'HCP_alltasks_268' tasks for training; set to ['NA'] if directory unused
 predicted_outcome = ['Age_in_Yrs']  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs'
 one_hot = True  # only relevant for classification-based outcomes (i.e. sex)
-transformations = 'tangent'  # 'positive definite', 'untransformed', 'tangent'
+transformations = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'harmonic'  # euclidean, harmonic
 deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0' # TODO: implement X1Y1 multi-input/xarray data
 confound_names = None  # ['Weight','Height','Handedness', 'Age_in_Yrs', 'PSQI_Score'], None
@@ -58,6 +57,11 @@ cv_folds = 5  # cross validation folds, for shallow networks
 # various measures of interest from the HCP dataset
 r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
 b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender']
+
+# Subject splits in .txt format
+test_subnum_path = 'Subject_Splits/final_test_list.txt'
+train_subnum_path = 'Subject_Splits/final_train_list.txt'
+val_subnum_path = 'Subject_Splits/final_val_list.txt'
 
 ################################################
 ## Automated setting of conditional variables ##

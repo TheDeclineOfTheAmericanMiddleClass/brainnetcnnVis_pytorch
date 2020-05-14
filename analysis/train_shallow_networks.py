@@ -77,41 +77,45 @@ def train_FC90net():
         if predicted_outcome == ['Gender']:
             hl_sizes = (3, fl)
 
+        print(f'Hidden layer size: {hl_sizes}')
         FC90Net = neural_network.MLPClassifier(hidden_layer_sizes=hl_sizes,
                                                max_iter=500,
                                                solver='sgd',
-                                               learning_rate='constant',
-                                               learning_rate_init=lr,
+                                               # learning_rate='constant',
+                                               learning_rate='adaptive',
+                                               # learning_rate_init=lr,
                                                momentum=momentum,
                                                activation='relu',
                                                verbose=True,
                                                early_stopping=False,
-                                               tol=1e-4,
-                                               n_iter_no_change=10,
+                                               # tol=1e-4,
+                                               # n_iter_no_change=10,
                                                random_state=1234)
         cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=['balanced_accuracy'],
                                     verbose=True)
 
     else:
-        hl_sizes = (9, fl)
+        hl_sizes = (9,)
         # if np.any([po in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N'] for po in predicted_outcome]):
         #     hl_sizes = (223, 128, 192, fl)  # per He et al. 2019, 58 behavior prediction
         if predicted_outcome == ['Age_in_Yrs']:
             hl_sizes = (9, fl)  # per He et al. 2019, age prediction
 
-        FC90Net = neural_network.MLPRegressor(  # hidden_layer_sizes=hl_sizes,
-            max_iter=500,
-            solver='sgd',
-            learning_rate='constant',
-            learning_rate_init=lr,
-            momentum=momentum,
-            activation='relu',
-            verbose=True,
-            early_stopping=False,
-            tol=1e-4,
-            n_iter_no_change=10,
-            random_state=1234)
+        print(f'Hidden layer size: {hl_sizes}')
+        FC90Net = neural_network.MLPRegressor(hidden_layer_sizes=hl_sizes,
+                                              max_iter=500,
+                                              solver='sgd',
+                                              # learning_rate='constant',
+                                              learning_rate='adaptive',
+                                              # learning_rate_init=lr,
+                                              momentum=momentum,
+                                              activation='relu',
+                                              verbose=True,
+                                              early_stopping=False,
+                                              # tol=1e-4,
+                                              # n_iter_no_change=10,
+                                              random_state=1234)
 
         cv_results = cross_validate(FC90Net, shallowX_train, shallowY_train, cv=cv_folds,
                                     scoring=scoring,
@@ -162,8 +166,15 @@ Elastic_cv_results = train_ElasticNet()
 float_formatter = "{:.3f}".format
 np.set_printoptions(formatter={'float_kind': float_formatter})
 
+
+def namestr(obj, namespace):
+    return [name for name in namespace if namespace[name] is obj]
+
+
 for results in [FC90_cv_results, Elastic_cv_results, SVM_cv_results]:
+    print(namestr(results, globals())[0])
+
     if multiclass:
-        print(-np.mean(results['balanced_accuracy']))
+        print('balanced_accuracy: ', np.mean(results['test_balanced_accuracy']), '\n')
     else:
-        print(-np.mean(results['test_neg_mean_absolute_error']), np.mean(results['test_r2']))
+        print('MAE: ', -np.mean(results['test_neg_mean_absolute_error']), 'r^2: ', np.mean(results['test_r2']), '\n')

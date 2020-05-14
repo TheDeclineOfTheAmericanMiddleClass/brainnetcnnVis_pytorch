@@ -27,7 +27,7 @@ if multi_input:  # create xarray to hold all matrices
                     '/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
                 tasknames = ['_'.join((cd, taskname)) for taskname in
                              chosen_tasks_in_dir]  # creating keys for chosen tasks
-                cdata = cdata[tasknames]
+                # cdata = cdata[tasknames]
                 break
 
         for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
@@ -70,15 +70,21 @@ elif not multi_input:
         cdata = xr.DataArray(cdata, coords=[subnums, nodes], dims=['subject', 'dim1'], name=chosen_dir[0]).to_dataset()
 
 print('Finished reading in matrix data...adding restricted and behavioral data to dataset.\n')
+
 # adding restricted and behavioral data to dataset
 r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
 b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender']
-restricted, behavioral = read_dem_data(cdata.subject.values)
-brx = xr.merge([restricted[r_vars].to_xarray(), behavioral[b_vars].to_xarray()], join='inner').swap_dims(
-    {'index': 'Subject'})
-brx = brx.rename_dims({'Subject': 'subject'})
-cdata = xr.merge([cdata, brx], join='inner')  # finding intersection
-cdata = cdata.dropna(dim='subject')  # dropping nan values
+
+# if cdata doesn't have behavioral and restricted data, add it
+if np.all([r_var not in list(cdata.data_vars) for r_var in r_vars]) \
+        and np.all([b_var not in list(cdata.data_vars) for b_var in b_vars]):
+    restricted, behavioral = read_dem_data(cdata.subject.values)
+    brx = xr.merge([restricted[r_vars].to_xarray(), behavioral[b_vars].to_xarray()], join='inner').swap_dims(
+        {'index': 'Subject'})
+    brx = brx.rename_dims({'Subject': 'subject'})
+    cdata = xr.merge([cdata, brx], join='inner')  # finding intersection
+    cdata = cdata.dropna(dim='subject')  # dropping nan values
+
 subnums = cdata.subject.values
 
 # removing edge betweeness from mega file data

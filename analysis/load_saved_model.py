@@ -1,53 +1,40 @@
 import numpy as np
+import torch
+import xarray as xr
 
-losses_train = []
-losses_test = []
-accs_test = []
-maes_test = []
-pears_test = []
-pvals_test = []
-rundate = []
 
 def main():
     # Adjust to load desired model
-    loadpath = input('Filepath of model/stats (without _model.pt or _stats.npz) : ')
+    loadpath_model = input('Filepath of model.pt : ')
 
-    # model = torch.load(f'{loadpath}_model.pt')
-    # model.eval()
+    model = torch.load(loadpath_model)
+    model.eval()
 
-    modelnpz = np.load(f'{loadpath}_stats.npz', allow_pickle=True)
+    loadpath_performance = input('Filepath of performance.nc : ')
+    performance = xr.load_dataset(loadpath_performance)
 
-    losses_train.extend(modelnpz.f.train_losses)
-    losses_test.extend(modelnpz.f.test_losses)
-    rundate.extend(modelnpz.f.rundate)
-    maes_test.extend(modelnpz.f.mae_eng)
-    pears_test.extend(modelnpz.f.pears_eng)
-    accs_test.extend(modelnpz.f.acc_eng)
+    try:
+        if len(performance.outcome) > 1:
+            best_test_epoch = performance[list(performance.data_vars)[0]].loc[
+                dict(set='test', metrics='MAE')].mean(axis=-1).argmin().values
+        else:
+            best_test_epoch = performance[list(performance.data_vars)[0]].loc[
+                dict(set='test', metrics='MAE')].argmin().values
+    except ValueError:
+        best_test_epoch = performance[list(performance.data_vars)[0]].loc[
+            dict(set='test', metrics='accuracy')].argmax().values
 
+    # formatting float print-out
+    float_formatter = "{:.3f}".format
+    np.set_printoptions(formatter={'float_kind': float_formatter})
 
-# def main():
-#     # Adjust to load desired model
-#     loadpath = input('Filepath of model/stats (without _model.pt or _stats.npz : ')
-#
-#     # model = torch.load(f'loadpath}_model.pt')
-#     # model.eval()
-#
-#     modelnpz = np.load(f'{loadpath}_stats.npz')
-#
-#     allloss_train = modelnpz.f.train_losses
-#     allloss_test = modelnpz.f.test_losses
-#     rundate = modelnpz.f.rundate
-#
-#     try:
-#         allmae_test = modelnpz.f.mae_eng
-#         allpears_test = modelnpz.f.pears_eng
-#     except ValueError:
-#         pass
-#
-#     try:
-#         allacc_test = modelnpz.f.acc_eng
-#     except ValueError:
-#         pass
+    print(f'\nBest test performance'
+          f'\nepoch: {best_test_epoch}'
+          f"\nMAE: {performance[list(performance.data_vars)[0]].loc[dict(set='test', metrics='MAE', epoch=best_test_epoch)].values.squeeze()}"
+          f"\npearson R: {performance[list(performance.data_vars)[0]].loc[dict(set='test', metrics='pearsonR', epoch=best_test_epoch)].values.squeeze()}"
+          f"\npearson p-value: {performance[list(performance.data_vars)[0]].loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
+          f"\naccuracy: {performance[list(performance.data_vars)[0]].loc[dict(set='test', metrics='accuracy', epoch=best_test_epoch)].values.squeeze()}")
+
 
 if __name__ == '__main__':
     main()
