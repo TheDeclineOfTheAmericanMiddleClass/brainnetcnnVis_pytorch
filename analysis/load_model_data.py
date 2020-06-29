@@ -4,12 +4,32 @@ from preprocessing.degrees_of_freedom import *
 from preprocessing.preproc_funcs import *
 from preprocessing.read_data import subnums, cdata
 
+# setting number of classes per outcome
+if predicted_outcome[0] in ['Gender',
+                            'IPIP_ns_hardcluster']:  # NOTE: can only handle single outcome multiclass problesm
+    num_classes = np.unique(cdata[predicted_outcome[0]]).size
+else:
+    num_classes = 1
+multiclass = num_classes > 1
+
+# specifying outcome and its shape
 if multiclass:  # TODO: later, implement logic for deconfounding with (multiclass + continuous) outcomes
     outcome = np.where(np.array([pd.get_dummies(cdata[x].values, dtype=bool).to_numpy()
                                  for x in predicted_outcome]).squeeze())[1].astype(float)
 else:
     outcome = np.array([cdata[x].values for x in predicted_outcome],
-                       dtype=float).squeeze().T  # Setting variable for network to predict
+                       dtype=float).squeeze()  # Setting variable for network to predict # TODO: reapply transpose if other outcomes are fucked
+
+if outcome.shape[0] != len(cdata.subject):  # assuming 2dim outcome array, ensure first dim is subject,
+    outcome = outcome.T
+
+# updating number of outcomes with outcome shape
+if outcome.shape.__len__() > 1:
+    num_outcome = outcome.shape[-1]
+else:
+    num_outcome = 1
+
+multi_outcome = num_outcome > 1
 
 ###############################################################
 # Defining train, test, validaton sets with Parvathy's partitions

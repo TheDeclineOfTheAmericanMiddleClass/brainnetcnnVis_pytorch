@@ -15,7 +15,7 @@ directories = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE', 
                'Johann_mega_graph': 'data/Send_to_Tim/HCP_IMAGEN_ID_mega_file.txt'
                }
 
-# Tasks in cfHCP900_FSL_GM dataset
+# Tasks in alltasks_268 aka cfHCP900_FSL_GM dataset
 tasks = {'rest1': 'rfMRI_REST1',
          'working_memory': 'tfMRI_WM',
          'gambling': 'tfMRI_GAMBLING',
@@ -28,9 +28,10 @@ tasks = {'rest1': 'rfMRI_REST1',
          'NA': ''}
 
 # Degrees of freedom in the model input/output
-chosen_dir = ['HCP_rsfc_pCorr01_264']  # list of data keys for training
-chosen_tasks = ['NA']  # list of 'HCP_alltasks_268' tasks for training; set to ['NA'] if directory unused
-predicted_outcome = ['Age_in_Yrs']  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs'
+chosen_dir = ['HCP_alltasks_268']  # list of data keys in var(directories), pointing to data to train on
+chosen_tasks = ['rest1']  # list of 'HCP_alltasks_268' tasks to train on; set to ['NA'] if directory unused
+predicted_outcome = [f'softcluster_{i}' for i in [2, 6,
+                                                  9]]  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs', 'PMAT24_A_CR'
 one_hot = True  # only relevant for classification-based outcomes (i.e. sex)
 transformations = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'harmonic'  # euclidean, harmonic
@@ -65,24 +66,11 @@ val_subnum_path = 'Subject_Splits/final_val_list.txt'
 
 ################################################
 ## Automated setting of conditional variables ##
-################################################
+###############################################
 
-# setting number of classes per outcome
-if predicted_outcome == ['Gender']:
-    num_classes = 2
-else:
-    num_classes = 1
 
-# setting number of outcomes to predict
-num_outcome = len(predicted_outcome)  # number of outcomes predicted
+# TODO: fix for auto read-in of Gerlach data, perhaps write a class to store conditional vars and update them after read_data
 
-# necessary booleans for model output & architecture
-multi_outcome = (num_outcome > 1)
-
-if num_classes > 1:
-    multiclass = True
-else:
-    multiclass = False
 
 # setting necessary string for saving model, plotting
 if scale_confounds:
@@ -111,7 +99,7 @@ if chosen_dir == ['Johann_mega_graph']:
 else:
     data_are_matrices = True
 
-# setting keys for xarray data variables
+# setting names for xarray data variables
 chosen_Xdatavars = chosen_dir.copy()
 if 'HCP_alltasks_268' in chosen_Xdatavars:
     chosen_Xdatavars.remove('HCP_alltasks_268')

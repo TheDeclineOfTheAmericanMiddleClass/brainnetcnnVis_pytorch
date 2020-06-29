@@ -6,36 +6,9 @@ from sklearn.preprocessing import MaxAbsScaler
 from analysis.load_model_data import *
 from preprocessing.preproc_funcs import *
 
-scale_features = True
-
-subs = train_subs.tolist() + test_subs.tolist() + val_subs.tolist()
-inds = train_ind.tolist() + test_ind.tolist() + val_ind.tolist()
-
-# creating data arrays to be trained on
-if data_are_matrices:
-    shallowX_train = np.concatenate([X[var].sel(dict(subject=subs)).values[:,
-                                     np.triu_indices_from(X[var][0], k=1)[0], np.triu_indices_from(X[var][0], k=1)[1]]
-                                     for var in chosen_Xdatavars], axis=1)
-
-elif not data_are_matrices:
-    shallowX_train = X[chosen_Xdatavars[0]][inds].values
-
-    if scale_features:  # TODO: fix so only training data used to fit scaler in CV loop
-        scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][train_ind.tolist()].values)
-        shallowX_train = scaler.transform(shallowX_train)
-
-shallowY_train = Y[inds]
-
-if multiclass:  # transforming one_hot encoded Y-data back into multiclass
-    shallowY_train = onehot_to_multiclass(shallowY_train)
-
-# defining regression scoring methods
-# scoring = dict(zip(['mae','r2'], [make_scorer(mean_absolute_error, multioutput='raw_values'), 'r2']))
-scoring = ['neg_mean_absolute_error', 'r2']
-
 
 # defining training on SVM, FC90 (MLP), and ElasticNet
-def train_SVM():
+def train_SVM(scoring):
     print('Training SVM...')
 
     if multi_outcome:
@@ -62,7 +35,7 @@ def train_SVM():
     return cv_results
 
 
-def train_FC90net():
+def train_FC90net(scoring):
     print('Training FC90Net...')
     # kf = KFold(n_splits=10)
 
@@ -126,7 +99,7 @@ def train_FC90net():
     return cv_results
 
 
-def train_ElasticNet():
+def train_ElasticNet(scoring):
     print('Training ElasticNet...')
 
     if multiclass:
@@ -153,26 +126,45 @@ def train_ElasticNet():
     return cv_results
 
 
-# Training Networks
-print(f'Training shallow networks to predict {", ".join(predicted_outcome)}, from data in {chosen_Xdatavars}...\n')
-
-FC90_cv_results = train_FC90net()
-
-SVM_cv_results = train_SVM()
-
-Elastic_cv_results = train_ElasticNet()
-
 # formatting a printing results
 float_formatter = "{:.3f}".format
 np.set_printoptions(formatter={'float_kind': float_formatter})
 
+# setting data transformation parameters, performance metrics
+scale_features = True
+scoring = ['neg_mean_absolute_error', 'r2']
 
-def namestr(obj, namespace):
-    return [name for name in namespace if namespace[name] is obj]
+# training on all data, without segregation by twin status
+subs = train_subs.tolist() + test_subs.tolist() + val_subs.tolist()
+inds = train_ind.tolist() + test_ind.tolist() + val_ind.tolist()
 
+# creating data arrays to be trained on
+if data_are_matrices:
+    shallowX_train = np.concatenate([X[var].sel(dict(subject=subs)).values[:,
+                                     np.triu_indices_from(X[var][0], k=1)[0], np.triu_indices_from(X[var][0], k=1)[1]]
+                                     for var in chosen_Xdatavars], axis=1)
 
-for results in [FC90_cv_results, Elastic_cv_results, SVM_cv_results]:
-    print(namestr(results, globals())[0])
+elif not data_are_matrices:
+    shallowX_train = X[chosen_Xdatavars[0]][inds].values
+
+    if scale_features:  # TODO: fix so only training data used to fit scaler in CV loop
+        scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][train_ind.tolist()].values)
+        shallowX_train = scaler.transform(shallowX_train)
+
+shallowY_train = Y[inds]
+
+if multiclass:  # transforming one_hot encoded Y-data back into multiclass
+    shallowY_train = onehot_to_multiclass(shallowY_train)
+
+# Training Networks
+print(f'Training shallow networks to predict {", ".join(predicted_outcome)}, from data in {chosen_Xdatavars}...\n')
+SVM_cv_results = train_SVM(scoring)
+# FC90_cv_results = train_FC90net(scoring)
+# Elastic_cv_results = train_ElasticNet(scoring)
+
+# Printing results
+for results in [SVM_cv_results]:  # [FC90_cv_results, Elastic_cv_results, SVM_cv_results]:
+    print(namestr(results, globals())[0], f'dataset(s): {chosen_Xdatavars}')
 
     if multiclass:
         print('balanced_accuracy: ', np.mean(results['test_balanced_accuracy']), '\n')

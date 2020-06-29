@@ -4,13 +4,17 @@ import torch.utils.data.dataset
 from analysis.define_models import *
 from preprocessing.read_data import *
 
+# limiting CPU usage
+torch.set_num_threads(1)
+
 # Defining train, test, validation sets
 trainset = HCPDataset(mode="train")
 testset = HCPDataset(mode="test")
 valset = HCPDataset(mode="valid")
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=2)
-testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
-valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=2)
+
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=1, pin_memory=False)
+testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1, pin_memory=False)
+valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1, pin_memory=False)
 
 # Creating the model
 if predicted_outcome == ['Gender'] and architecture == 'yeo_sex':
@@ -37,7 +41,7 @@ if use_cuda:
     net = net.cuda()
     cudnn.benchmark = True
 
-# check if model parameters are on GPU or no
+# ensure model parameters are on GPU
 assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
 if optimizer == 'sgd':
@@ -104,6 +108,23 @@ def train():  # training in mini batches
         optimizer.step()
 
         running_loss += loss.data.mean(0)  # only predicting 1 feature
+
+        # TODO: see iff accumulated gradient speeds up training
+        # # 16 accumulated gradient steps
+        # scaled_loss = 0
+        # for accumulated_step_i in range(16):
+        #     outputs = net(inputs)
+        #     targets = targets.view(outputs.size())
+        #     loss = criterion(input=outputs, target=targets)
+        #     loss.backward()
+        #     scaled_loss += loss.data.mean(0)
+        #
+        # # update weights after 8 steps. effective batch = 8*16
+        # optimizer.step()
+        #
+        # # loss is now scaled up by the number of accumulated batches
+        # actual_loss = scaled_loss / 16
+        # running_loss += actual_loss
 
         preds.append(outputs.data.cpu().numpy())
         ytrue.append(targets.data.cpu().numpy())

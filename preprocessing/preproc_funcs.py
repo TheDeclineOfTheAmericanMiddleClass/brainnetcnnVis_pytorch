@@ -145,7 +145,7 @@ def read_mat_data(dataDir, toi=[]):
     subnums.sort()
     subnums = np.array(subnums).astype(float).squeeze()  # necessary for comparison to train-test-split partitions
 
-    data = np.array(data)
+    data = np.array(data, dtype=float)
 
     print(f'Success! {dataDir} {toi} read in.\n')
 
@@ -733,3 +733,7 @@ def multiclass_to_onehot(Y):
 
 def onehot_to_multiclass(a):
     return np.array([np.where(r == 1)[0][0] for r in a])
+
+
+def namestr(obj, namespace):
+    return [name for name in namespace if namespace[name] is obj]

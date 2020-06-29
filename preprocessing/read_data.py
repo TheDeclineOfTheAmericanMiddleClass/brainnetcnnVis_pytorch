@@ -65,7 +65,7 @@ elif not multi_input:
 
     try:
         cdata = xr.DataArray(cdata, coords=[subnums, nodes, nodes], dims=['subject', 'dim1', 'dim2'],
-                             name=chosen_dir[0]).to_dataset()
+                             name=chosen_Xdatavars[0]).to_dataset()
     except ValueError:
         cdata = xr.DataArray(cdata, coords=[subnums, nodes], dims=['subject', 'dim1'], name=chosen_dir[0]).to_dataset()
 
@@ -73,17 +73,41 @@ print('Finished reading in matrix data...adding restricted and behavioral data t
 
 # adding restricted and behavioral data to dataset
 r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
-b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender']
+b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender', 'PMAT24_A_CR']
 
 # if cdata doesn't have behavioral and restricted data, add it
 if np.all([r_var not in list(cdata.data_vars) for r_var in r_vars]) \
         and np.all([b_var not in list(cdata.data_vars) for b_var in b_vars]):
-    restricted, behavioral = read_dem_data(cdata.subject.values)
+    restricted, behavioral = read_dem_data(cdata.subject.values)  # reading data for only available subjects
     brx = xr.merge([restricted[r_vars].to_xarray(), behavioral[b_vars].to_xarray()], join='inner').swap_dims(
         {'index': 'Subject'})
     brx = brx.rename_dims({'Subject': 'subject'})
     cdata = xr.merge([cdata, brx], join='inner')  # finding intersection
     cdata = cdata.dropna(dim='subject')  # dropping nan values
+
+# add Gerlach soft-clustering scores to cdata
+if chosen_dir == ['HCP_alltasks_268']:
+    import pickle
+
+    HCP_gmm_cluster_IPIP5 = pickle.load(
+        open('personality-types/data_filter/gmm_cluster13_IPIP5.pkl', "rb"))  # read in file
+
+    cluster_labels = HCP_gmm_cluster_IPIP5['labels'].T
+    cluster_labels = np.log10(
+        cluster_labels)  # log-likelihoods of cluster membership TODO: comment out if no improvement
+    ns_cluster_args = (HCP_gmm_cluster_IPIP5['enrichment'] > 1.25) & (
+            HCP_gmm_cluster_IPIP5['pval'] < .01)  # non-spurious clusters
+
+    # HCP_ns_softcluster = HCP_gmm_cluster_IPIP5['labels'][:, ns_cluster_args]  # soft-cluster likelihoods of non-spurious
+    # cdata['IPIP_ns_softcluster'] = xr.DataArray(HCP_ns_softcluter, dims=['subject','ns_cluster'])
+    # HCP_ns_hardcluster = HCP_ns_softcluter.argmax(axis=1) # hard-cluster likelihoods of non-spurious
+    # cdata['IPIP_ns_hardcluster'] = xr.DataArray(HCP_ns_hardcluster, dims='subject')
+
+    cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject')
+    for i, x in enumerate(cluster_labels):
+        cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(
+            dict(enrichment=HCP_gmm_cluster_IPIP5['enrichment'][i], pval=HCP_gmm_cluster_IPIP5['pval'][i],
+                 non_spurious=ns_cluster_args[i]))
 
 subnums = cdata.subject.values
 

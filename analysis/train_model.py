@@ -1,27 +1,29 @@
+import datetime
+
 from scipy.stats import pearsonr
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 
 from analysis.init_model import *
 
-# setting up xarray to hold performance metrics
-sets = ['train', 'test']
-metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
-alloc_data = np.zeros((nbepochs, len(sets), len(metrics), num_outcome))
-alloc_data[:] = np.nan
-
-global performance
-
-if multi_outcome:
-    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
-                               dims=['epoch', 'set', 'metrics', 'outcome'])
-else:
-    performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
-                               dims=['epoch', 'set', 'metrics', 'outcome'])
-
 
 def main():
-    print('Using data: ', chosen_dir, '\n Predicting:', ", ".join(predicted_outcome))
+    global performance
+
+    # setting up xarray to hold performance metrics
+    sets = ['train', 'test']
+    metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
+    alloc_data = np.zeros((nbepochs, len(sets), len(metrics), num_outcome))
+    alloc_data[:] = np.nan
+
+    if multi_outcome:
+        performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
+                                   dims=['epoch', 'set', 'metrics', 'outcome'])
+    else:
+        performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
+                                   dims=['epoch', 'set', 'metrics', 'outcome'])
+
+    print('Using data: ', chosen_Xdatavars, '\n Predicting:', ", ".join(predicted_outcome))
 
     # # initializing weights
     # net.apply(init_weights_he)
@@ -39,7 +41,7 @@ def main():
 
     elif multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
-        acc_1 = accuracy_score(preds, y_true)
+        acc_1 = balanced_accuracy_score(preds, y_true)
         print("Init Network")
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.2}")
 
@@ -90,7 +92,7 @@ def main():
         elif multiclass:
             preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
-            acc, trainacc = accuracy_score(preds, y_true), accuracy_score(trainp, trainy)
+            acc, trainacc = balanced_accuracy_score(preds, y_true), balanced_accuracy_score(trainp, trainy)
 
             print(f"{predicted_outcome}, Test accuracy : {acc:.02}")
 
@@ -141,40 +143,53 @@ def main():
                 if stagnant_mae or stagnant_r:
                     break
 
+    rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
+
+    po = '_'.join(predicted_outcome)
+    cXdv = '_'.join(chosen_Xdatavars)
+
+    if chosen_tasks == list(tasks.keys())[:-1]:  # If all tasks, used simply name file with HCP_alltasks_268
+        cXdv = f'{chosen_dir[0]}'
+    if predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
+        po = 'softcluster_all'
+
+    model_preamble = f"BNCNN_{architecture}_{po}_{cXdv}" \
+                     f"_{transformations}_{deconfound_flavor}{scl}__es{ep_int}_" + rundate
+
+    # Save trained model parameters
+    filename_model = model_preamble + '_model.pt'
+    torch.save(net, f'models/{filename_model}')
+
+    # Save trained model performance
+    performance = performance.assign_coords(stop_int=epoch - ep_int)  # adding early stop epoch to xarray
+    performance = performance.expand_dims('stop_int')
+    performance = performance.assign_coords(rundate=rundate)  # adding rundate to xarray
+    performance = performance.expand_dims('rundate')
+    performance = performance.assign_coords(
+        chosen_Xdatavars=str(chosen_Xdatavars))  # addinng datasets trained on to xarray
+    performance = performance.expand_dims('chosen_Xdatavars')
+
+    filename_performance = model_preamble + '_performance.nc'
+    performance.name = filename_performance  # updating xarray name internally
+
+    performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
+
+    # Print best test-set results
+    if multiclass:
+        best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
+    elif multi_outcome:  # best epoch has lowest mean error
+        best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].mean(axis=-1).argmin().values
+    else:
+        best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
+
+    print(f'\nBest test performance'
+          f'\noutcome: {chosen_Xdatavars}'
+          f'\nepoch: {best_test_epoch}'
+          f"\nMAE: {performance.loc[dict(set='test', metrics='MAE', epoch=best_test_epoch)].values.squeeze()}"
+          f"\npearson R: {performance.loc[dict(set='test', metrics='pearsonR', epoch=best_test_epoch)].values.squeeze()}"
+          f"\npearson p-value: {performance.loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
+          f"\naccuracy: {performance.loc[dict(set='test', metrics='accuracy', epoch=best_test_epoch)].values.squeeze()}")
+
 
 if __name__ == "__main__":
     main()
-
-import datetime
-
-rundate = datetime.datetime.now().strftime("%m-%d-%H-%M")
-
-model_preamble = f"BNCNN_{architecture}_{'_'.join(predicted_outcome)}_{'_'.join(chosen_Xdatavars)}" \
-                 f"_{transformations}_{deconfound_flavor}{scl}__es{ep_int}_" + rundate
-
-# Save trained model parameters
-filename_model = model_preamble + '_model.pt'
-torch.save(net, f'models/{filename_model}')
-
-# Save trained model performance
-performance = performance.assign_coords(stop_int=epoch - ep_int)  # adding early stop epoch to xarray
-performance = performance.expand_dims('stop_int')
-performance = performance.assign_coords(rundate=rundate)  # adding rundate to xarray
-performance = performance.expand_dims('rundate')
-filename_performance = model_preamble + '_performance.nc'
-performance.name = filename_performance  # updating xarray name internally
-
-performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
-
-# Print best test-set results
-if multiclass:
-    best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
-else:
-    best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
-
-print(f'\nBest test performance'
-      f'\nepoch: {best_test_epoch}'
-      f"\nMAE: {performance.loc[dict(set='test', metrics='MAE', epoch=best_test_epoch)].values.squeeze()}"
-      f"\npearson R: {performance.loc[dict(set='test', metrics='pearsonR', epoch=best_test_epoch)].values.squeeze()}"
-      f"\npearson p-value: {performance.loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
-      f"\naccuracy: {performance.loc[dict(set='test', metrics='accuracy', epoch=best_test_epoch)].values.squeeze()}")
