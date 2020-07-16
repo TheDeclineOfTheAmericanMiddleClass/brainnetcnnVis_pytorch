@@ -1,50 +1,37 @@
-## Start by running the below notebooks:
-# personality-types/notebooks/preprocessing_01-filter-data.ipynb
-# personality-types/notebooks/preprocessing_02-questions-vs-domains.ipynb
-# personality-types/notebooks/preprocessing_03-factor-analysis.ipynb
-# personality-types/notebooks/analysis_clustering-01_number-of-clusters-BIC.ipynb
-
-import pickle
-
-import matplotlib.pyplot as plt
-import numpy as np
-
+from preprocessing.degrees_of_freedom import dataset_to_cluster, Q
+from preprocessing.preproc_funcs import *
 from preprocessing.read_data import cdata
 
+assert dataset_to_cluster in ['HCP', 'IMAGEN'], f'{dataset_to_cluster} not available for latent dimension transform'
 
-def HCP_latent_transform(cdata, Q=5):
-    '''Calculating factor-transformed, varimax-rotated latent dimensions of personality from HCP dataset.
-    Saving as a .npy file.'''
+# reading Gerlach subject IPIP-NEO data and running factor analysis
+# from src.analysis import preprocessing_01_filter_data # only necessary if never run before
+# from src.analysis import preprocessing_02_questions_vs_domains # only necessary when {Q} is changed
 
-    # HCP personality info
-    HCP_domain = cdata[['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N']].to_array().values.T
+# loading in correct dataset
+if dataset_to_cluster == 'IMAGEN':
+    # # reaading in IMAGEN personality data
+    IMAGEN_HCP = pd.read_csv('/raid/projects/BIGFIVE/New_Tim_Hahn_GraphVar/BEHAV_IMAGEN_and_HCP_clean.csv')
+    IMAGEN_only = IMAGEN_HCP[IMAGEN_HCP.ID.str.startswith('IMAGEN')]
+    # NEO_keys = [x.startswith('NEO') for x in IMAGEN_only.keys()]
+    # IMAGEN_NEO = IMAGEN_only[IMAGEN_only.keys()[NEO_keys]]
+    IMAGEN_subs = [int(x[7:]) for x in IMAGEN_only.ID]
+    data = IMAGEN_only
+elif dataset_to_cluster == 'HCP':
+    data = cdata
 
-    # dictionary of data necessary to transform HCP data
-    mvtr = pickle.load(open(f'personality-types/data_filter/ipip{Q}-mvtr-1.pkl', "rb"))
+# transforming data to FA latent dimensions
+#  saving as 'personality-types/data_filter/{dataset}_ipip{Q}_domain_latent_transform.npy'
+NEOFFIdomain_latent_transform(data, dataset=dataset_to_cluster, Q=Q)
 
-    # z-score acc. to the Gerlach mean/std
-    z_muvar = np.load(f'personality-types/data_filter/ipip{Q}-pre_cluster_zscore_mu_var-1.npy')
-    z_mu, z_var = z_muvar[0], z_muvar[1]
-
-    # transforming HCP data
-    HCP_latent = (HCP_domain - mvtr['mu']) @ mvtr['trans_mat']  # applying scaling & factor analysis fit-transform
-    HCP_latent = (mvtr['rot_mat'] @ HCP_latent.T).T  # varimax rotation
-    HCP_latent = (HCP_latent - z_mu) / z_var  # z-scoring
-
-    # saving as file, to be run through soft-cluster anaylsis
-    np.save(f'personality-types/data_filter/ipip{Q}_HCP_latent_transform.npy', HCP_latent)
-
-
-HCP_latent_transform(cdata)
-
-# # Run personality-types/notebooks/analysis_clustering-02_meaningful-clusters-kernel-density.ipynb..
+# clustering
 
 # End product: gmm cluster dictionary, with cluster locations in space of latent dimensions
-#  (calculated from Gerlach subjects' BigFive traits)
-HCP_gcd = pickle.load(open('personality-types/data_filter/gmm_cluster13_IPIP5.pkl', "rb"))
+gcd = pickle.load(open(f'personality-types/data_filter/{dataset_to_cluster}_gmm_cluster13_IPIP{Q}.pkl', "rb"))
 
 
-def plot_most_likely_clusters(gmm_cluster_dict=HCP_gcd):
+# # functions for plotting cluster distribution beween subjects
+def plot_most_likely_clusters(gmm_cluster_dict=gcd):
     '''Plots a histogram of likelihoods across all subjects, from highest to least likely cluster membership.'''
     ml_cluster = np.argsort(gmm_cluster_dict['labels'])  # plotting histogram to see distribution of most likely cluster
     ns_cluster_args = (gmm_cluster_dict['enrichment'] > 1.25) & (
@@ -73,7 +60,7 @@ def plot_most_likely_clusters(gmm_cluster_dict=HCP_gcd):
         f'Distribution of {ml_cluster.shape[0]} HCP Subjects\' personality cluster membership \n (arranged from most-to-least likely, 13 cluster-bins)')
 
 
-def plot_per_cluster_probability(gmm_cluster_dict=HCP_gcd):
+def plot_per_cluster_probability(gmm_cluster_dict=gcd):
     '''Plots subjects' likelihood of cluster membership, for each cluster.'''
     ns_cluster_args = (gmm_cluster_dict['enrichment'] > 1.25) & (
             gmm_cluster_dict['pval'] < .01)  # non-spurious clusters
@@ -91,3 +78,4 @@ def plot_per_cluster_probability(gmm_cluster_dict=HCP_gcd):
             axs[i].set_title(f'Cluster {i + 1}, spurious')
     fig.suptitle(
         f'Distribution of {gmm_cluster_dict["labels"].shape[0]} HCP Subjects\' personality cluster log-likelihood\n(per cluster, 50 bins)')
+

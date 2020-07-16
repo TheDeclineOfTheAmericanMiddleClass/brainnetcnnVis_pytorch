@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import glob
 import inspect
+import pickle
 import re
 import sys
 from os import listdir
@@ -33,7 +34,7 @@ def read_dem_data(subnums):
     return restricted, behavioral
 
 
-# read face-emotional data from HCP900 dataset
+# read face-emotional data from HCP900 data
 def read_HCP900_data():
     filepath = 'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.mat'
     taskdata = {}
@@ -395,7 +396,7 @@ def check_symmetric(a, rtol=1e-05, atol=1e-08):
 
 
 # TODO: finish implementation of twins
-# partition dataset so twins are not separated between test-train-validation sets
+# partition data so twins are not separated between test-train-validation sets
 def partition(restricted, Family_ID):
     '''Partitioning data so one families twins remain in test/validation/training sets'''
 
@@ -420,19 +421,19 @@ def partition(restricted, Family_ID):
     assert len(gcMZ) + len(gcDZ) + len(gcBlank) == 1003
 
     gcMZTwins = set(gcMZ) & set(GTyes)  # genetically confirmed MZ twins
-    assert len(gcMZTwins) <= 298  # 298 MZ in 1200 dataset
+    assert len(gcMZTwins) <= 298  # 298 MZ in 1200 data
 
     gcDZTwins = set(gcDZ) & set(GTyes)  # genetically confirmed DZ twins
-    assert len(gcDZTwins) <= 188  # 188 DZ twins in 1200 dataset
+    assert len(gcDZTwins) <= 188  # 188 DZ twins in 1200 data
 
     # p5 and p6 refer to points 5 and 6 of pg 89 in HCP release reference manual
     # https://www.humanconnectome.org/storage/app/media/documentation/s1200/HCP_S1200_Release_Reference_Manual.pdf
 
     p5 = set(srMZ) & set(gcBlank)  # point 5 of pg 89
-    assert len(p5) <= 66  # 66 subjects with ZygositySR=MZ, but ZygosityGT=Blank in 1200 dataset
+    assert len(p5) <= 66  # 66 subjects with ZygositySR=MZ, but ZygosityGT=Blank in 1200 data
 
     p6 = set(srNotMZ) & set(gcBlank)
-    assert len(p6) <= 65  # 65 subjects with ZygositySR=NotMZ, but ZygosityGT=Blank in 1200 dataset
+    assert len(p6) <= 65  # 65 subjects with ZygositySR=NotMZ, but ZygosityGT=Blank in 1200 data
 
     # subjects whose putative twin is not part of the 1206 released study subjects.
     nsMZ = p5 & set(GTno)  # subjects whose putative MZ twin IS  part of the 1206, but HasGT=FALSE for one of the pair,
@@ -582,7 +583,7 @@ def create_connectivity(dataDir='data/HCP_created_ICA300_timeseries', rho=.5,
 def get_confound_parameters(est_data, confounds, set_ind=None):
     """Takes array of square matrices (samples x matrices) and returns confound signals, the parameter.
 
-    est_data: full dataset from which the confound parameters are estimated
+    est_data: full data from which the confound parameters are estimated
     set_ind: indices of the est_data from which the confound parameters will be estimated
     confounds: list of confounds, each containing same number of samples as est_data
     data_tbd: data to be deconfounded
@@ -688,16 +689,15 @@ def array2matrix(samples, mat_size=300):
     return d_mats
 
 
-# deconfounding entire dataset from
 def deconfound_dataset(data, confounds, set_ind, outcome):
     """
-    Takes input of a dataset, its confounds. Deletes samples with nan-valued Y entries.
-     Returns the deconfounded dataset.
+    Takes input of a data, its confounds. Deletes samples with nan-valued Y entries.
+     Returns the deconfounded data.
 
     :param outcome: ground truth value to be deconfounded, per Y1
     :param data: Samples x symmetric matrices (row x column) to be deconfounded, per X1
     :param confounds: Confounds x samples, to be factored out of cdata
-    :param set_ind: sample indices of dataset from which deconfounding parameters will be calculated
+    :param set_ind: sample indices of data from which deconfounding parameters will be calculated
     :return: List of deconfounded X, Y as well as new train-test-validation indices
     """
 
@@ -737,3 +737,79 @@ def onehot_to_multiclass(a):
 
 def namestr(obj, namespace):
     return [name for name in namespace if namespace[name] is obj]
+
+
+def NEOFFIdomain_latent_transform(data, dataset='HCP', Q=5):
+    """
+    Calculating factor-transformed, varimax-rotated latent dimensions of personality from NEO-FFI domain data.
+    Saves .npy file with transformed data.
+
+    :param data: pandas-like DataFrame/xarray-like DataArray with subject data. NEO-FFI data must be in columns of headers starting with 'NEO'.
+    :param Q: number of features form which latent dimensions are calculated
+    :return: None
+    """
+
+    # read in personality data
+    NEO_keys = list(filter(lambda x: x.startswith('NEO'), list(data.keys())))
+    try:  # data as xarray DA
+        feature_info = data[NEO_keys].to_array().values
+    except AttributeError:  # data as pandas DF
+        feature_info = data[NEO_keys].values
+
+    # ensure correct dims
+    feature_info = feature_info.reshape(-1, Q)
+
+    # dictionary of data necessary to transform HCP data
+    mvtr = pickle.load(open(f'personality-types/data_filter/ipip{Q}-mvtr-1.pkl', "rb"))
+
+    # z-score acc. to the Gerlach mean/std
+    z_muvar = np.load(f'personality-types/data_filter/ipip{Q}-pre_cluster_zscore_mu_var-1.npy')
+    z_mu, z_var = z_muvar[0], z_muvar[1]
+
+    # transforming HCP data
+    latent_data = (feature_info - mvtr['mu']) @ mvtr['trans_mat']  # applying scaling & factor analysis fit-transform
+    latent_data = (mvtr['rot_mat'] @ latent_data.T).T  # varimax rotation
+    latent_data = (latent_data - z_mu) / z_var  # z-scoring
+
+    # saving as file, to be run through soft-cluster anaylsis
+    np.save(f'personality-types/data_filter/{dataset}_ipip{Q}_domain_latent_transform.npy', latent_data)
+
+
+def derive_HCP_NEOFFI60_scores():
+    # # Reading in HCP NEO-FFI60 raw item responses
+    unrestricted = pd.read_csv('data/unrestricted_adrymoat_6_30_2020_0_54_27.csv')
+    NEORAW_keys = list(filter(lambda x: x.startswith('NEORAW'), list(unrestricted.keys())))
+    NEORAW_keys.insert(0, 'Subject')
+    HCP_NEORAW = unrestricted[NEORAW_keys].dropna()
+
+    # coding the items per dom_key
+    neuroticism_items = [1, 11, 16, 31, 46, 6, 21, 26, 36, 41, 51, 56]
+    extraversion_items = [7, 12, 37, 42, 2, 17, 27, 57, 22, 32, 47, 52]
+    openness_items = [13, 23, 43, 48, 53, 58, 3, 8, 18, 38]
+    agreeableness_items = [9, 14, 19, 24, 29, 44, 54, 59, 4, 34, 39, 49]
+    conscientiousness_items = [5, 10, 15, 30, 55, 25, 35, 60, 20, 40, 45, 50]
+
+    # coding forward or reverse scoring
+    n_keying = dict(forward=[11, 6, 21, 26, 36, 41, 51, 56], reverse=[1, 16, 31, 46])
+    e_keying = dict(forward=[7, 37, 2, 17, 22, 32, 47, 52], reverse=[12, 42, 27, 57])
+    o_keying = dict(forward=[13, 43, 53, 58], reverse=[23, 48, 3, 8, 18, 38])
+    a_keying = dict(forward=[19, 4, 34, 49], reverse=[9, 14, 24, 29, 44, 54, 59, 39])
+    c_keying = dict(forward=[5, 10, 25, 35, 60, 20, 40, 50], reverse=[15, 30, 55, 45])
+    dom_names = ['NEOFAC_N', 'NEOFAC_E', 'NEOFAC_O', 'NEOFAC_A', 'NEOFAC_C']
+
+    # deriving scores (1-5) for each item and domains
+    forward_score = dict(SD=1, D=2, N=3, A=4, SA=5)  # assuming 'strongly agree/disagree' is the abbrev.
+    reverse_score = dict(SD=5, D=4, N=3, A=2, SA=1)
+
+    HCP_NEOscored = HCP_NEORAW.copy()
+
+    for i, dom_key in enumerate([n_keying, e_keying, o_keying, a_keying, c_keying]):
+        for_items = ['NEORAW_' + (('0' + str(x))[-2:]) for x in dom_key['forward']]
+        rev_items = ['NEORAW_' + (('0' + str(x))[-2:]) for x in dom_key['reverse']]
+        HCP_NEOscored[for_items] = HCP_NEOscored[for_items].replace(forward_score)
+        HCP_NEOscored[rev_items] = HCP_NEOscored[rev_items].replace(reverse_score)
+
+        # deriving domain score
+        HCP_NEOscored[dom_names[i]] = HCP_NEOscored[for_items + rev_items].sum(axis=1)
+
+    return HCP_NEOscored

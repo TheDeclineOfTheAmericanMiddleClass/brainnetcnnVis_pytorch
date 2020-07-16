@@ -115,9 +115,8 @@
 #         # concatenate LR ans RL nii timeseries
 #         shutil.rmtree(f'data/tmp/{fil[0:6]}')  # delete temp file
 #
-# import matplotlib.pyplot as plt
-#
-# epi_img_data = img.get_fdata()
+
+import matplotlib.pyplot as plt
 
 
 def show_slices(slices):
@@ -126,9 +125,9 @@ def show_slices(slices):
     for i, slice in enumerate(slices):
         axes[i].imshow(slice.T, cmap="gray", origin="lower")
 
-
-slice_0 = epi_img_data[45, :, :, 0]
-slice_1 = epi_img_data[:, 55, :, 0]
-slice_2 = epi_img_data[:, :, 45, 0]
-show_slices([slice_0, slice_1, slice_2])
-plt.suptitle("Center slices for EPI image")  # doctest: +SKIP
+# epi_img_data = img.get_fdata()
+# slice_0 = epi_img_data[45, :, :, 0]
+# slice_1 = epi_img_data[:, 55, :, 0]
+# slice_2 = epi_img_data[:, :, 45, 0]
+# show_slices([slice_0, slice_1, slice_2])
+# plt.suptitle("Center slices for EPI image")  # doctest: +SKIP

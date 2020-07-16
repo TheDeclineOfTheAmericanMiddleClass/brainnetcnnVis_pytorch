@@ -6,6 +6,8 @@ import xarray as xr
 from preprocessing.degrees_of_freedom import *
 from preprocessing.preproc_funcs import *
 
+# global subnums, cdata
+
 # # Everything to be put on a GPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 use_cuda = torch.cuda.is_available()
@@ -34,7 +36,7 @@ if multi_input:  # create xarray to hold all matrices
             try:
                 partial, subnums = read_mat_data(directories[cd], toi=tasks[taskname])
             except KeyError:
-                raise KeyError(f'\'{taskname}\' is an invalid task name for dataset {cd}...')
+                raise KeyError(f'\'{taskname}\' is an invalid task name for data {cd}...')
 
             nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
 
@@ -69,9 +71,8 @@ elif not multi_input:
     except ValueError:
         cdata = xr.DataArray(cdata, coords=[subnums, nodes], dims=['subject', 'dim1'], name=chosen_dir[0]).to_dataset()
 
-print('Finished reading in matrix data...adding restricted and behavioral data to dataset.\n')
+print('Finished reading in matrix data...adding restricted and behavioral data to data.\n')
 
-# adding restricted and behavioral data to dataset
 r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
 b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender', 'PMAT24_A_CR']
 

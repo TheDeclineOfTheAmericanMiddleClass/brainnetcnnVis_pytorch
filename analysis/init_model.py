@@ -2,7 +2,9 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
 from analysis.define_models import *
-from preprocessing.read_data import *
+from analysis.load_model_data import multi_outcome
+from preprocessing.degrees_of_freedom import predicted_outcome, architecture, optimizer, momentum, wd, lr, max_norm
+from preprocessing.read_data import use_cuda, device
 
 # limiting CPU usage
 torch.set_num_threads(1)
@@ -51,16 +53,22 @@ elif optimizer == 'adam':
 else:
     raise KeyError(f'{optimizer} is not a valid optimizer. Please try again.')
 
-if multiclass and num_classes <= 2:
+if multiclass:
+    # if multiclass and num_classes <= 2:
     y_unique = trainset.Y.unique(sorted=True).numpy()
     y_propor = (torch.stack([trainset.Y.T[i].sum() for i in range(len(y_unique))]) / trainset.Y.__len__()).numpy()
     y_propor = dict((int(key), y_propor[int(key)]) for key in y_unique)
 
-    if one_hot:
+    if num_classes == 2:
         criterion = nn.BCELoss().cuda(device)  # balanced Binary Cross Entropy as loss function
-    else:
-        # criterion = torch.nn.BCELoss().cuda(device)
+    elif num_classes > 2:
         criterion = nn.CrossEntropyLoss().cuda(device)
+
+    # if one_hot: # TODO: implement one_hot in degrees_of_freedom if issues arise
+    #     criterion = nn.BCELoss().cuda(device)  # balanced Binary Cross Entropy as loss function
+    # else:
+    #     # criterion = torch.nn.BCELoss().cuda(device)
+    #     criterion = nn.CrossEntropyLoss().cuda(device)
 
 else:
     criterion = torch.nn.MSELoss().cuda(device)  # shows loss for each outcome
@@ -77,7 +85,7 @@ def train():  # training in mini batches
     for batch_idx, (inputs, targets) in enumerate(trainloader):
 
         if use_cuda:
-            if not multi_outcome and not multiclass:  # TODO: ensure adding not multiclass functions
+            if not multi_outcome and not multiclass:
                 # print('unsqueezing target for vstack...')
                 inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
             else:
@@ -136,7 +144,7 @@ def train():  # training in mini batches
 
     # return running_loss / batch_idx
 
-    if not multi_outcome and not multiclass:  # TODO: see if changing or multiclass -> and not mutliclass works
+    if not multi_outcome and not multiclass:
         # print('y_true left well enough alone...')
         return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
     else:
@@ -182,7 +190,7 @@ def test():
             print('Test loss: %.6f' % (running_loss / 5))
             running_loss = 0.0
 
-    if not multi_outcome and not multiclass:  # TODO: see if changing or multiclass -> and not mutliclass works
+    if not multi_outcome and not multiclass:
         # print('y_true left well enough alone...')
         return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
     else:
@@ -217,3 +225,4 @@ def init_weights_XU(m):
         print(f'he limit {he_lim}')
         m.weight.data.uniform_(-he_lim, he_lim)
         print(f'\nWeight initializations: {m.weight}')
+

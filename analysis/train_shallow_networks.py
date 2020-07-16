@@ -3,7 +3,9 @@ from sklearn.linear_model import ElasticNet, SGDClassifier, MultiTaskElasticNet
 from sklearn.model_selection import cross_validate
 from sklearn.preprocessing import MaxAbsScaler
 
-from analysis.load_model_data import *
+from analysis.load_model_data import multi_outcome, data_are_matrices, X, Y, num_outcome, num_classes, partition_subs, \
+    partition_inds
+from preprocessing.degrees_of_freedom import cv_folds, momentum, chosen_Xdatavars, predicted_outcome, multiclass
 from preprocessing.preproc_funcs import *
 
 
@@ -135,8 +137,8 @@ scale_features = True
 scoring = ['neg_mean_absolute_error', 'r2']
 
 # training on all data, without segregation by twin status
-subs = train_subs.tolist() + test_subs.tolist() + val_subs.tolist()
-inds = train_ind.tolist() + test_ind.tolist() + val_ind.tolist()
+subs = partition_subs["train"].tolist() + partition_subs["test"].tolist() + partition_subs["val"].tolist()
+inds = partition_inds["train"].tolist() + partition_inds["test"].tolist() + partition_inds["val"].tolist()
 
 # creating data arrays to be trained on
 if data_are_matrices:
@@ -148,7 +150,7 @@ elif not data_are_matrices:
     shallowX_train = X[chosen_Xdatavars[0]][inds].values
 
     if scale_features:  # TODO: fix so only training data used to fit scaler in CV loop
-        scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][train_ind.tolist()].values)
+        scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][partition_inds["train"].tolist()].values)
         shallowX_train = scaler.transform(shallowX_train)
 
 shallowY_train = Y[inds]

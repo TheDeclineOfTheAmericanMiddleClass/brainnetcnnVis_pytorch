@@ -1,9 +1,12 @@
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 import torch.utils.data.dataset
+import xarray as xr
 
-from analysis.load_model_data import *
+from analysis.load_model_data import partition_subs, partition_inds, num_outcome, num_classes, multiclass, X, Y
+from preprocessing.degrees_of_freedom import chosen_Xdatavars, multi_input, num_input
 
 
 class HCPDataset(torch.utils.data.Dataset):
@@ -11,7 +14,7 @@ class HCPDataset(torch.utils.data.Dataset):
     def __init__(self, mode="train", transform=False, class_balancing=False):
         """
         Args:
-            directory (string): Path to the dataset.
+            directory (string): Path to the data.
             mode (str): train = 75% Train, validation=15% Train, train+validation=100% train else test.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
@@ -22,16 +25,19 @@ class HCPDataset(torch.utils.data.Dataset):
         # X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
 
         if self.mode == "train":
-            x = xr.merge([X[var].sel(dict(subject=train_subs)) for var in chosen_Xdatavars]).to_array().values
-            y = Y[train_ind]
+            x = xr.merge(
+                [X[var].sel(dict(subject=partition_subs["train"])) for var in chosen_Xdatavars]).to_array().values
+            y = Y[partition_inds["train"]]
 
         elif self.mode == "test":
-            x = xr.merge([X[var].sel(dict(subject=test_subs)) for var in chosen_Xdatavars]).to_array().values
-            y = Y[test_ind]
+            x = xr.merge(
+                [X[var].sel(dict(subject=partition_subs["test"])) for var in chosen_Xdatavars]).to_array().values
+            y = Y[partition_inds["test"]]
 
         elif mode == "valid":
-            x = xr.merge([X[var].sel(dict(subject=val_subs)) for var in chosen_Xdatavars]).to_array().values
-            y = Y[val_ind]
+            x = xr.merge(
+                [X[var].sel(dict(subject=partition_subs["val"])) for var in chosen_Xdatavars]).to_array().values
+            y = Y[partition_inds["val"]]
 
         x = x.reshape(-1, num_input, x.shape[-1], x.shape[-1]).squeeze()
 
@@ -170,10 +176,12 @@ class ParvathySex_BNCNN_v2byAdu(torch.nn.Module):
         self.e2econv1 = E2EBlock(example.size(1), 16, example, bias=True)
         self.E2N = torch.nn.Conv2d(16, 128, (1, self.d))
         self.N2G = torch.nn.Conv2d(128, 26, (self.d, 1))
-        if one_hot:
-            self.dense1 = torch.nn.Linear(26, num_classes)
-        else:
-            self.dense1 = torch.nn.Linear(26, 1)
+        self.dense1 = torch.nn.Linear(26, num_classes)
+
+        # if one_hot: #  TODO: implement one_hot in degrees_of_freedom if problems arise
+        #     self.dense1 = torch.nn.Linear(26, num_classes)
+        # else:
+        #     self.dense1 = torch.nn.Linear(26, 1)
 
         for m in self.modules():  # initializing weights
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -203,11 +211,12 @@ class YeoSex_BNCNN(torch.nn.Module):
         self.e2econv1 = E2EBlock(example.size(1), 38, example, bias=True)
         self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
         self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
-        if one_hot:
-            self.dense1 = torch.nn.Linear(7, num_classes)
-        else:
-            self.dense1 = torch.nn.Linear(7, 1)
+        self.dense1 = torch.nn.Linear(7, num_classes)  # TODO: implement one_hot in degrees_of_freedom if problems arise
 
+        # if one_hot:
+        #     self.dense1 = torch.nn.Linear(7, num_classes)
+        # else:
+        #     self.dense1 = torch.nn.Linear(7, 1)
 
         for m in self.modules():  # initializing weights
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -314,7 +323,6 @@ class Kawahara_BNCNN(torch.nn.Module):
         out = out.view(out.size(0), -1)
         out = F.relu(self.dense1(out))
         out = F.dropout(F.relu(self.dense2(out)), p=0.5)
-        # out = self.batchnorm(out)         # TODO: see if batchnorm helps with non-nan initializations
         out = F.relu(self.dense3(out))
 
         return out

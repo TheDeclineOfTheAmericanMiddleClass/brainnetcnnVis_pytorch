@@ -1,9 +1,10 @@
-############################
+###########################
 # DEGREES OF FREEDOM IN MODEL
-############################
+###########################
 
 # Directories of posssible datasets to use
-directories = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',  # HCP partial correlation @ rho = .01
+directories = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE',
+               # HCP partial correlation @ rho = .01
                'HCP_rsfc_pCorr01_264': 'data/POWER_264_FIXEXTENDED_RIDGEP',  # power 264 resting PCORR matrices
                'HCP_rsfc_Corr_300': 'data/HCP_created_ICA300_mats/corr',  # HCP-created ICA300 rsfc
                'HCP_alltasks_268': 'data/cfHCP900_FSL_GM',  # all HCP tasks, 268x268, z-scored
@@ -13,9 +14,9 @@ directories = {'HCP_rsfc_pCorr01_300': 'data/3T_HCP1200_MSMAll_d300_ts2_RIDGE', 
                'Adu_rsfc_Corr_300': 'data/self_created_HCP_mats/ICA300_corr',
                # should be equivalent to 'HCP_rsfc_Corr_300'
                'Johann_mega_graph': 'data/Send_to_Tim/HCP_IMAGEN_ID_mega_file.txt'
-               }
+               }  # TODO: add directories and DoF for HCP vs IMAGEN data
 
-# Tasks in alltasks_268 aka cfHCP900_FSL_GM dataset
+# Tasks in alltasks_268 aka cfHCP900_FSL_GM data
 tasks = {'rest1': 'rfMRI_REST1',
          'working_memory': 'tfMRI_WM',
          'gambling': 'tfMRI_GAMBLING',
@@ -27,12 +28,25 @@ tasks = {'rest1': 'rfMRI_REST1',
          'faces': 'tfMRI_EMOTION',
          'NA': ''}
 
+# various measures of interest from the HCP data
+r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
+b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender']
+
+# Outcomes to predict
+predict_choices = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs', 'PMAT24_A_CR'] \
+                  + [f'softcluster_{i}' for i in range(1, 14)]
+
+multiclass_outcomes = ['Gender', 'IPIP_ns_hardcluster']  # multiclass outcomes
+
+# Subject splits, by twin status, in .txt format
+subnum_paths = dict(test='Subject_Splits/final_test_list.txt',
+                    train='Subject_Splits/final_train_list.txt',
+                    val='Subject_Splits/final_val_list.txt')
+
 # Degrees of freedom in the model input/output
 chosen_dir = ['HCP_alltasks_268']  # list of data keys in var(directories), pointing to data to train on
 chosen_tasks = ['rest1']  # list of 'HCP_alltasks_268' tasks to train on; set to ['NA'] if directory unused
-predicted_outcome = [f'softcluster_{i}' for i in [2, 6,
-                                                  9]]  # 'NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender', 'Age_in_Yrs', 'PMAT24_A_CR'
-one_hot = True  # only relevant for classification-based outcomes (i.e. sex)
+predicted_outcome = [f'softcluster_{i}' for i in [2, 6, 9]]
 transformations = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'harmonic'  # euclidean, harmonic
 deconfound_flavor = 'X0Y0'  # or 'X1Y0', 'X1Y1', 'X0Y0' # TODO: implement X1Y1 multi-input/xarray data
@@ -41,6 +55,9 @@ scale_confounds = True  # whether confound are scaled by trainset confounds's ma
 architecture = 'usama'  # 'yeo_sex', 'kawahara', 'usama', 'parvathy_v2', 'FC90Net', 'yeo_58'
 optimizer = 'sgd'  # 'sgd', 'adam'
 edge_betweenness = False
+
+Q = 5  # number of feature used to fit clustering GMM
+dataset_to_cluster = 'IMAGEN'
 
 # Hyper parameters for training
 momentum = 0.9  # momentum
@@ -55,22 +72,11 @@ ep_int = 5  # early stopping interval
 min_ep = 50  # minimum epochs after which to check for stagnation in learning
 cv_folds = 5  # cross validation folds, for shallow networks
 
-# various measures of interest from the HCP dataset
-r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
-b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender']
-
-# Subject splits in .txt format
-test_subnum_path = 'Subject_Splits/final_test_list.txt'
-train_subnum_path = 'Subject_Splits/final_train_list.txt'
-val_subnum_path = 'Subject_Splits/final_val_list.txt'
-
 ################################################
 ## Automated setting of conditional variables ##
 ###############################################
 
-
 # TODO: fix for auto read-in of Gerlach data, perhaps write a class to store conditional vars and update them after read_data
-
 
 # setting necessary string for saving model, plotting
 if scale_confounds:
@@ -87,11 +93,12 @@ if sum([directory == 'HCP_alltasks_268' for directory in chosen_dir]) == 0:
 
 # boolean logic for multiple input matrices
 num_input = len(chosen_dir) - 1 + len(chosen_tasks)
-
 if num_input == 1:
     multi_input = False
 else:
     multi_input = True
+
+multiclass = bool(predicted_outcome[0] in multiclass_outcomes)  # necessary bool for single-outcome, multiclass problems
 
 # logic for transformations, etc.
 if chosen_dir == ['Johann_mega_graph']:
@@ -108,10 +115,3 @@ if 'HCP_alltasks_268' in chosen_Xdatavars:
         chosen_Xdatavars.append(datavar)
 
 # # TODO: later, implement read in of array + matrix data
-# # logic for transformations, etc.
-# data_are_matrices = []
-# for datavar in chosen_Xdatavars:
-#     if chosen_dir == ['Johann_mega_graph']:
-#         data_are_matrices.append(False)
-#     else:
-#         data_are_matrices.append(True)

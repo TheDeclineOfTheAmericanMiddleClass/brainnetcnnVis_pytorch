@@ -69,12 +69,3 @@ def read_NIFTI():
 
 
 read_NIFTI()
-
-import pandas as pd
-
-IMAGEN_HCP = pd.read_csv('/raid/projects/BIGFIVE/New_Tim_Hahn_GraphVar/BEHAV_IMAGEN_and_HCP_clean.csv')
-IMAGEN_only = IMAGEN_HCP[IMAGEN_HCP.ID.str.startswith('IMAGEN')]
-NEO_keys = [x.startswith('NEO') for x in IMAGEN_only.keys()]
-IMAGEN_NEO = IMAGEN_only[IMAGEN_only.keys()[NEO_keys]]
-
-IMAGEN_taskscores = pd.read_csv('/raid/projects/BIGFIVE/IMAGEN_WISC_GRAPHVAR.csv', delimiter=';')  # task scores
