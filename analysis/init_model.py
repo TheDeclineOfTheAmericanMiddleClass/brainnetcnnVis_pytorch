@@ -2,9 +2,9 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
 from analysis.define_models import *
-from analysis.load_model_data import multi_outcome
-from preprocessing.degrees_of_freedom import predicted_outcome, architecture, optimizer, momentum, wd, lr, max_norm
+from analysis.load_model_data import multi_outcome, y_weights
 from preprocessing.read_data import use_cuda, device
+from utils.degrees_of_freedom import predicted_outcome, architecture, optimizer, momentum, wd, lr, max_norm
 
 # limiting CPU usage
 torch.set_num_threads(1)
@@ -54,21 +54,11 @@ else:
     raise KeyError(f'{optimizer} is not a valid optimizer. Please try again.')
 
 if multiclass:
-    # if multiclass and num_classes <= 2:
-    y_unique = trainset.Y.unique(sorted=True).numpy()
-    y_propor = (torch.stack([trainset.Y.T[i].sum() for i in range(len(y_unique))]) / trainset.Y.__len__()).numpy()
-    y_propor = dict((int(key), y_propor[int(key)]) for key in y_unique)
-
     if num_classes == 2:
-        criterion = nn.BCELoss().cuda(device)  # balanced Binary Cross Entropy as loss function
+        criterion = nn.BCELoss(weight=torch.Tensor(y_weights)).cuda(
+            device)  # balanced Binary Cross Entropy as loss function
     elif num_classes > 2:
-        criterion = nn.CrossEntropyLoss().cuda(device)
-
-    # if one_hot: # TODO: implement one_hot in degrees_of_freedom if issues arise
-    #     criterion = nn.BCELoss().cuda(device)  # balanced Binary Cross Entropy as loss function
-    # else:
-    #     # criterion = torch.nn.BCELoss().cuda(device)
-    #     criterion = nn.CrossEntropyLoss().cuda(device)
+        criterion = nn.CrossEntropyLoss(weight=torch.Tensor(y_weights)).cuda(device)
 
 else:
     criterion = torch.nn.MSELoss().cuda(device)  # shows loss for each outcome
@@ -101,9 +91,8 @@ def train():  # training in mini batches
             loss = criterion(input=outputs, target=targets)
         except RuntimeError:
             if multiclass:
-                loss = criterion(input=torch.argmax(outputs.data, 1),
-                                 target=torch.argmax(targets.data, 1),
-                                 weight=[y_propor[x] for x in targets])
+                loss = criterion(input=outputs,
+                                 target=torch.argmax(targets.data, 1))
 
         loss.backward()
 
@@ -174,9 +163,8 @@ def test():
                 loss = criterion(input=outputs, target=targets)
             except RuntimeError:
                 if multiclass:
-                    loss = criterion(input=torch.argmax(outputs.data, 1),
-                                     target=torch.argmax(targets.data, 1),
-                                     weight=[y_propor[x] for x in targets])
+                    loss = criterion(input=outputs,
+                                     target=torch.argmax(targets.data, 1))
 
             test_loss += loss.data.mean(0)  # only predicting 1 feature
 

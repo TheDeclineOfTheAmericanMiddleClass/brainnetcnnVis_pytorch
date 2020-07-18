@@ -1,12 +1,12 @@
-from preprocessing.degrees_of_freedom import dataset_to_cluster, Q
-from preprocessing.preproc_funcs import *
 from preprocessing.read_data import cdata
+from utils.degrees_of_freedom import dataset_to_cluster, Q
+from utils.preproc_funcs import *
 
 assert dataset_to_cluster in ['HCP', 'IMAGEN'], f'{dataset_to_cluster} not available for latent dimension transform'
+assert Q == 5, f'Latent feature extraction is only implemented for calculation over BigFive traits, Q==5'
 
 # reading Gerlach subject IPIP-NEO data and running factor analysis
-# from src.analysis import preprocessing_01_filter_data # only necessary if never run before
-# from src.analysis import preprocessing_02_questions_vs_domains # only necessary when {Q} is changed
+# from src.analysis import preprocessing_01_filter_data  # only necessary if never run before
 
 # loading in correct dataset
 if dataset_to_cluster == 'IMAGEN':
@@ -24,7 +24,7 @@ elif dataset_to_cluster == 'HCP':
 #  saving as 'personality-types/data_filter/{dataset}_ipip{Q}_domain_latent_transform.npy'
 NEOFFIdomain_latent_transform(data, dataset=dataset_to_cluster, Q=Q)
 
-# clustering
+# clustering, and saving results as .pkl dictionary
 
 # End product: gmm cluster dictionary, with cluster locations in space of latent dimensions
 gcd = pickle.load(open(f'personality-types/data_filter/{dataset_to_cluster}_gmm_cluster13_IPIP{Q}.pkl', "rb"))

@@ -3,8 +3,9 @@ import os
 import torch
 import xarray as xr
 
-from preprocessing.degrees_of_freedom import *
-from preprocessing.preproc_funcs import *
+from utils.degrees_of_freedom import multi_input, chosen_dir, chosen_tasks, chosen_Xdatavars, edge_betweenness
+from utils.preproc_funcs import *
+from utils.var_names import *
 
 # global subnums, cdata
 
@@ -15,7 +16,7 @@ use_cuda = torch.cuda.is_available()
 if multi_input:  # create xarray to hold all matrices
     cdata = []
 
-    for i, cd in enumerate(chosen_dir):  # for all directories
+    for i, cd in enumerate(chosen_dir):  # for all data_directories
 
         if chosen_dir != ['HCP_alltasks_268']:  # setting chosen_tasks if multiple are available in the directory
             chosen_tasks_in_dir = ['NA']
@@ -23,7 +24,7 @@ if multi_input:  # create xarray to hold all matrices
         elif chosen_dir == ['HCP_alltasks_268']:
             chosen_tasks_in_dir = chosen_tasks
 
-            # TODO: implement intelligent reading in of HC900_FSL_GM data and AFTER other directories read in, their concatenation
+            # TODO: implement intelligent reading in of HC900_FSL_GM data and AFTER other data_directories read in, their concatenation
             if os.path.isfile('/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc'):
                 cdata = xr.load_dataset(
                     '/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
@@ -34,7 +35,7 @@ if multi_input:  # create xarray to hold all matrices
 
         for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
             try:
-                partial, subnums = read_mat_data(directories[cd], toi=tasks[taskname])
+                partial, subnums = read_mat_data(data_directories[cd], toi=HCP268_tasks[taskname])
             except KeyError:
                 raise KeyError(f'\'{taskname}\' is an invalid task name for data {cd}...')
 
@@ -62,7 +63,7 @@ elif not multi_input:
     elif chosen_dir == ['HCP_alltasks_268']:
         chosen_tasks_in_dir = chosen_tasks
 
-    cdata, subnums = read_mat_data(directories[chosen_dir[0]], toi=tasks[chosen_tasks_in_dir[0]])
+    cdata, subnums = read_mat_data(data_directories[chosen_dir[0]], toi=HCP268_tasks[chosen_tasks_in_dir[0]])
     nodes = [f'node {x}' for x in np.arange(cdata.shape[-1])]
 
     try:
@@ -99,12 +100,8 @@ if chosen_dir == ['HCP_alltasks_268']:
     ns_cluster_args = (HCP_gmm_cluster_IPIP5['enrichment'] > 1.25) & (
             HCP_gmm_cluster_IPIP5['pval'] < .01)  # non-spurious clusters
 
-    # HCP_ns_softcluster = HCP_gmm_cluster_IPIP5['labels'][:, ns_cluster_args]  # soft-cluster likelihoods of non-spurious
-    # cdata['IPIP_ns_softcluster'] = xr.DataArray(HCP_ns_softcluter, dims=['subject','ns_cluster'])
-    # HCP_ns_hardcluster = HCP_ns_softcluter.argmax(axis=1) # hard-cluster likelihoods of non-spurious
-    # cdata['IPIP_ns_hardcluster'] = xr.DataArray(HCP_ns_hardcluster, dims='subject')
-
-    cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject')
+    cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject',
+                                        coords=dict(subject=cdata.subject.values))
     for i, x in enumerate(cluster_labels):
         cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(
             dict(enrichment=HCP_gmm_cluster_IPIP5['enrichment'][i], pval=HCP_gmm_cluster_IPIP5['pval'][i],

@@ -91,7 +91,7 @@
 #         face_files.append(fil)
 # face_files.sort()
 #
-# # releavant directories
+# # releavant data_directories
 # graddir = ['LR', 'RL']
 # LRgz = 'MNINonLinear/Results/tfMRI_EMOTION_LR/tfMRI_EMOTION_LR.nii.gz'
 # RLgz = 'MNINonLinear/Results/tfMRI_EMOTION_RL/tfMRI_EMOTION_RL.nii.gz'

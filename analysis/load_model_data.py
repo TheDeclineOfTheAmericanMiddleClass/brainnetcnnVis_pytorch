@@ -1,10 +1,11 @@
 import xarray as xr
 
-from preprocessing.degrees_of_freedom import predicted_outcome, tasks, chosen_dir, tan_mean, data_are_matrices, \
-    chosen_tasks, deconfound_flavor, scale_confounds, confound_names, chosen_Xdatavars, transformations, \
-    subnum_paths, multiclass_outcomes, multiclass
-from preprocessing.preproc_funcs import *
 from preprocessing.read_data import subnums, cdata
+from utils.degrees_of_freedom import predicted_outcome, chosen_dir, tan_mean, data_are_matrices, \
+    chosen_tasks, deconfound_flavor, scale_confounds, confound_names, chosen_Xdatavars, transformations, \
+    multiclass_outcomes, multiclass
+from utils.preproc_funcs import *
+from utils.var_names import HCP268_tasks, subnum_paths
 
 # # from cdata, calculating number of classes and number of outcomes
 # setting number of classes per outcome
@@ -15,7 +16,7 @@ else:
     num_classes = 1
 
 # specifying outcome and its shape
-if multiclass:  # TODO: later, implement logic for deconfounding with (multiclass + continuous) outcomes
+if 'Gender' in predicted_outcome:  # TODO: later, implement logic for (multiclass + continuous) outcomes
     outcome = np.where(np.array([pd.get_dummies(cdata[x].values, dtype=bool).to_numpy()
                                  for x in predicted_outcome]).squeeze())[1].astype(float)
 else:
@@ -35,11 +36,6 @@ multi_outcome = num_outcome > 1
 ###############################################################
 # Defining train, test, validaton sets with Parvathy's partitions
 ###############################################################
-# train_subs, train_ind, _ = np.intersect1d(subnums, np.loadtxt(train_subnum_path), return_indices=True)
-# val_subs, val_ind, _ = np.intersect1d(subnums, np.loadtxt(val_subnum_path), return_indices=True)
-# test_subs, test_ind, _ = np.intersect1d(subnums, np.loadtxt(test_subnum_path), return_indices=True)
-# print(f'{train_ind.shape + test_ind.shape + val_ind.shape} subjects total included in test-train-validation sets '
-#       f'({len(train_ind) + len(test_ind) + len(val_ind)} total)...\n')
 partition_subs = dict()  # dict for subject numbers by set split
 partition_inds = dict()  # dict for subject indices by set split
 
@@ -53,13 +49,6 @@ partition_subs["val"], partition_inds["val"], _ = np.intersect1d(subnums, np.loa
 print(
     f'{partition_subs["test"].shape + partition_subs["train"].shape + partition_subs["val"].shape} subjects total included in test-train-validation sets '
     f'({len(partition_inds["train"]) + len(partition_inds["test"]) + len(partition_inds["val"])} total)...\n')
-
-# # Dropping subjects not in train lists from all data variables in cdata
-# difference = set(cdata[chosen_Xdatavars[0]].subject.values).difference(
-#     set(np.hstack([partition_subs["train"], partition_subs["test"], partition_subs["val"]]).tolist()))
-#
-# for i, datavar in enumerate(list(cdata.data_vars)):
-#     cdata[datavar] = cdata[datavar].drop_sel(dict(subject=list(difference)))
 
 ###############################################################
 # # Deconfounding X and Y for data classes
@@ -102,20 +91,24 @@ if deconfound_flavor == 'X1Y1' or deconfound_flavor == 'X1Y0':  # If we have dat
         del X_corr
 
     # saving deconfounded matrices
-    if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(tasks.keys())[:-1]:
+    if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(HCP268_tasks.keys())[:-1]:
         cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
     # updating chosen datavars
     chosen_Xdatavars = ['_'.join(['dec', '_'.join(confound_names), x]) for x in chosen_Xdatavars]
 
-elif deconfound_flavor == 'X0Y0' or deconfound_flavor == 'X1Y0':
-    Y = outcome
+    # TODO: set logic here for X1Y1: Y = outcome
 
+if deconfound_flavor == 'X0Y0' or deconfound_flavor == 'X1Y0':
+    Y = outcome
 
 # Setting up multiclass classification with one-hot encoding
 if multiclass:
-    # if multiclass and one_hot:
+    # y_unique = np.unique(Y, return_counts=True)
+    # y_propor = dict(zip(y_unique[0], y_unique[1]))  # class weighting in dataset
     Y = multiclass_to_onehot(Y).astype(float)  # ensures Y is not of type object
+    y_propor = dict(zip(range(len(Y)), Y.sum(axis=0) / len(Y)))  # class weighting in dataset
+    y_weights = Y.sum(axis=0)  # /len(Y)  # class weighting in dataset
 
 if data_are_matrices:
     ###################################################################
@@ -146,7 +139,7 @@ if data_are_matrices:
                 del X_pd
 
         # saving positive definite matrices, for each data iteration
-        if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(tasks.keys())[:-1]:
+        if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(HCP268_tasks.keys())[:-1]:
             cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
     ###################################################################
@@ -185,7 +178,7 @@ if data_are_matrices:
             del X_tan
 
         # saving tangent matrices, for each data iteration
-        if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(tasks.keys())[:-1]:
+        if chosen_dir == ['HCP_alltasks_268'] and chosen_tasks == list(HCP268_tasks.keys())[:-1]:
             cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')  # Saving when necessary
 
 # updating list of chosen data for training

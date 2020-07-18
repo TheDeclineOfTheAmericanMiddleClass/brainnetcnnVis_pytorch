@@ -5,8 +5,8 @@ from sklearn.preprocessing import MaxAbsScaler
 
 from analysis.load_model_data import multi_outcome, data_are_matrices, X, Y, num_outcome, num_classes, partition_subs, \
     partition_inds
-from preprocessing.degrees_of_freedom import cv_folds, momentum, chosen_Xdatavars, predicted_outcome, multiclass
-from preprocessing.preproc_funcs import *
+from utils.degrees_of_freedom import cv_folds, momentum, chosen_Xdatavars, predicted_outcome, multiclass
+from utils.preproc_funcs import *
 
 
 # defining training on SVM, FC90 (MLP), and ElasticNet

@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from preprocessing.degrees_of_freedom import *
+from utils.degrees_of_freedom import *
 
 
 # TODO: edit plot_model_results to accommodate multiple outcomes

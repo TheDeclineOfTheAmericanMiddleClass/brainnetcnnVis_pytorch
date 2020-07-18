@@ -6,7 +6,7 @@ import torch.utils.data.dataset
 import xarray as xr
 
 from analysis.load_model_data import partition_subs, partition_inds, num_outcome, num_classes, multiclass, X, Y
-from preprocessing.degrees_of_freedom import chosen_Xdatavars, multi_input, num_input
+from utils.degrees_of_freedom import chosen_Xdatavars, multi_input, num_input
 
 
 class HCPDataset(torch.utils.data.Dataset):
@@ -135,10 +135,7 @@ class Node2Graph(nn.Module):
 #         self.dropout = nn.Dropout(p=dropout)
 #         self.n2g = Node2Graph(e2n, f_size, n2g)
 #
-#         if one_hot:
-#             self.fc = nn.Linear(n2g, num_classes)
-#         else:
-#             self.fc = nn.Linear(n2g, 1)
+#         self.fc = nn.Linear(n2g, num_classes)
 #         self.BatchNorm = nn.BatchNorm1d(n2g)
 #
 #         for m in self.modules():
@@ -178,11 +175,6 @@ class ParvathySex_BNCNN_v2byAdu(torch.nn.Module):
         self.N2G = torch.nn.Conv2d(128, 26, (self.d, 1))
         self.dense1 = torch.nn.Linear(26, num_classes)
 
-        # if one_hot: #  TODO: implement one_hot in degrees_of_freedom if problems arise
-        #     self.dense1 = torch.nn.Linear(26, num_classes)
-        # else:
-        #     self.dense1 = torch.nn.Linear(26, 1)
-
         for m in self.modules():  # initializing weights
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
                 init.xavier_uniform_(m.weight)
@@ -211,12 +203,7 @@ class YeoSex_BNCNN(torch.nn.Module):
         self.e2econv1 = E2EBlock(example.size(1), 38, example, bias=True)
         self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
         self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
-        self.dense1 = torch.nn.Linear(7, num_classes)  # TODO: implement one_hot in degrees_of_freedom if problems arise
-
-        # if one_hot:
-        #     self.dense1 = torch.nn.Linear(7, num_classes)
-        # else:
-        #     self.dense1 = torch.nn.Linear(7, 1)
+        self.dense1 = torch.nn.Linear(7, num_classes)
 
         for m in self.modules():  # initializing weights
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
