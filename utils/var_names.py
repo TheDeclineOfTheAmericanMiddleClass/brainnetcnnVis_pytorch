@@ -31,6 +31,6 @@ predict_choices = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', '
 multiclass_outcomes = ['Gender', 'hardcluster']
 
 # Subject splits, by twin status, in .txt format
-subnum_paths = dict(test='Subject_Splits/final_test_list.txt',
-                    train='Subject_Splits/final_train_list.txt',
-                    val='Subject_Splits/final_val_list.txt')
+subnum_paths = dict(test='subject_splits/final_test_list.txt',
+                    train='subject_splits/final_train_list.txt',
+                    val='subject_splits/final_val_list.txt')

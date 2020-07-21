@@ -52,7 +52,7 @@
 # dataDir = 'data/self_created_HCP_mats/ICA300_corr'
 # # dataDir = 'data/self_created_HCP_mats/ICA300_rho50_pcorr' # 3 non-PD matrices
 # cdata, subnums = read_mat_data(dataDir)
-# train_subnums = np.loadtxt('Subject_Splits/train_subnums.txt')
+# train_subnums = np.loadtxt('subject_splits/train_subnums.txt')
 # train_ind = np.where(np.isin(subnums, train_subnums))[0]
 #
 # # Confound info
