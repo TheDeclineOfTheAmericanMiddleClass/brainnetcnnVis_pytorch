@@ -10,12 +10,16 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity", action=
 # degrees of freedom in the model input/output
 in_out = parser.add_argument_group('in_out', 'model I/O params')
 in_out.add_argument("-po", "--predicted_outcome", choices=predict_choices, type=str, action='append',
+                    default=['hardcluster'],  # TODO: remove default after debugging
                     help="the outcome to predict")
 in_out.add_argument("-cd", "--chosen_dir", choices=list(data_directories.keys()), default=['HCP_alltasks_268'], nargs=1,
+                    # TODO: remove default after debugging
                     help='the data directories')
-in_out.add_argument("-ct", "--chosen_tasks", type=str, choices=list(HCP268_tasks.keys()),
+in_out.add_argument("-ct", "--chosen_tasks", type=str, choices=list(HCP268_tasks.keys()), default=['rest1'],
+                    # TODO: remove default after debugging
                     action='append', help="the HCP268_tasks to train on")
-in_out.add_argument("-mo", "--model", type=str, choices=['BNCNN', 'SVM'], default='BNCNN', help='the model to use',
+in_out.add_argument("-mo", "--model", type=str, choices=['BNCNN', 'SVM'], default=['BNCNN'], help='the model to use',
+                    # TODO: remove default after debugging
                     nargs=1)
 
 in_out.add_argument('--architecture',
@@ -59,19 +63,24 @@ logic = parser.add_argument_group('pipeline_logic', 'necessary vars for pipeline
 
 if uncond_args.transformations == 'tangent':
     transforms.add_argument('--tan_mean', choices=['euclidean', 'harmonic'], default='euclidean', nargs=1)
+
 if uncond_args.early:
     epochs.add_argument('--ep_int', type=int, default=5, help='if no improvement after {ep_int} epochs, stop early',
                         nargs=1)
     epochs.add_argument('--min_ep', default=50, type=int, help='mininmum epochs to train before early stopping',
                         nargs=1)
+    epochs.add_argument('early_str', action='store_const', const=f'es{epochs.ep_int}')
+else:
+    epochs.add_argument('early_str', action='store_const', const='')
+
 if uncond_args.deconfound_flavor != 'X0Y0':
     transforms.add_argument('--confound_names',
                             choices=['Weight', 'Height', 'Handedness', 'Age_in_Yrs', 'PSQI_Score', None],
                             required=True, type=str, help='confounds to regress out of outcome', nargs='+')
 
 if uncond_args.chosen_dir == 'Johann_mega_graph':  # TODO: make exclusive of BNCNN
-    eb = in_out.add_argument("-eb", "--edge_betweenness", action='store_true',
-                             help="if reading in data_directories['Johann_mega_graph'], include edgebetweeness vector")
+    in_out.add_argument("-eb", "--edge_betweenness", action='store_true',
+                        help="if reading in data_directories['Johann_mega_graph'], include edgebetweeness vector")
     logic.add_argument('data_are_matrices', action='store_const', const=False, help='bool for transformations')
 else:
     logic.add_argument('data_are_matrices', action='store_const', const=True, help='bool for transformations')
@@ -82,14 +91,22 @@ else:
     transforms.add_argument('scl', action='store_const', const='')
 
 # logic for accurate calculation of multi_input
-logic.add_argument('num_input', action='store_const',
-                   const=len(uncond_args.chosen_dir) - 1 + len(uncond_args.chosen_tasks),
-                   help='number of input matrices to train on')
+try:
+    logic.add_argument('num_input', action='store_const',
+                       const=len(uncond_args.chosen_dir) - 1 + len(uncond_args.chosen_tasks),
+                       help='number of input matrices to train on')
+except TypeError:
+    parser.exit('Chosen tasks (-ct) and/or chosen directory (-cd) must not be None.')
 
 if (len(uncond_args.chosen_dir) - 1 + len(uncond_args.chosen_tasks)) == 1:
     logic.add_argument('multi_input', action='store_const', const=False, help='bool for multi input training')
 else:
     logic.add_argument('multi_input', action='store_const', const=True, help='bool for multi input training')
+
+if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
+    in_out.add_argument('po_str', action='store_const', const='softcluster_all')
+else:
+    in_out.add_argument('po_str', action='store_const', const='_'.join(uncond_args.predicted_outcome))
 
 # names for xarray data variables
 chosen_Xdatavars = uncond_args.chosen_dir.copy()
@@ -100,6 +117,14 @@ if 'HCP_alltasks_268' in chosen_Xdatavars:
         chosen_Xdatavars.append(datavar)
 logic.add_argument('chosen_Xdatavars', action='store_const', const=chosen_Xdatavars,
                    help='names for xarray data variables')
+
+# # 2nd round of parsing, to set variable conditional on the conditional variables
+cond_args = parser.parse_args()
+
+if cond_args.chosen_Xdatavars == list(HCP268_tasks.keys())[:-1]:  # If all tasks, use simplified name HCP_alltasks_268
+    in_out.add_argument('cXdv_str', action='store_const', const='HCP_alltasks_268')
+else:
+    in_out.add_argument('cXdv_str', action='store_const', const='_'.join(cond_args.chosen_Xdatavars))
 
 # exit logic for mutually exclusive args
 if 'HCP_alltasks_268' in uncond_args.chosen_dir and 'NA' in uncond_args.chosen_tasks:
@@ -113,19 +138,37 @@ if uncond_args.model == 'BNCNN' and 'Johann_mega_graph' in uncond_args.chosen_di
 
 args = parser.parse_args()  # parsing unconditional and conditional args
 
-print(args)
-
 # # training models below
 if args.verbose:
     print(
         f"Training {args.model} to predict {args.predicted_outcome} from {args.chosen_dir}_{args.chosen_tasks} data...")
 
-# if args.model == 'BNCNN':
-#     from preprocessing import read_data
-#     from analysis import load_model_data, define_models, init_model, train_model
-#
-#
-# elif args.model == 'SVM':
-#     from analysis import train_shallow_networks
-#
-#     train_shallow_networks.main()  # TODO: have shallow_models save results
+if args.model == ['BNCNN']:  # TODO: pass series of updated dictionaries to each module
+    from preprocessing import read_data
+    from analysis import load_model_data, define_models, init_model, train_model
+
+    pargs = vars(args)  # dict of passed args
+    print('reading data...')
+    pargs.update(read_data.main(pargs))
+    print('loading model data...')
+    pargs.update(load_model_data.main(pargs))
+    print('defining models...')
+    pargs.update(define_models.main(pargs))
+    print('initializing model...')
+    pargs.update(init_model.main(pargs))
+    print('training model...')
+    train_model.main(pargs)
+    print('BNCNN training done!\n')
+
+elif args.model == ['SVM']:
+    from preprocessing import read_data
+    from analysis import load_model_data, train_shallow_networks
+
+    pargs = vars(args)  # dict of passed args
+    print('reading data...')
+    pargs.update(read_data.main(pargs))
+    print('loading model data...')
+    pargs.update(load_model_data.main(pargs))
+    print('training SVM...')
+    train_shallow_networks.main(pargs)
+    print('SVM training done!\n')

@@ -26,7 +26,7 @@ HCP268_tasks = {'rest1': 'rfMRI_REST1',
 
 # Outcomes to predict
 predict_choices = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender',
-                   'Age_in_Yrs', 'PMAT24_A_CR'] + [f'softcluster_{i}' for i in range(1, 14)]
+                   'Age_in_Yrs', 'PMAT24_A_CR', 'hardcluster'] + [f'softcluster_{i}' for i in range(1, 14)]
 
 multiclass_outcomes = ['Gender', 'hardcluster']
 

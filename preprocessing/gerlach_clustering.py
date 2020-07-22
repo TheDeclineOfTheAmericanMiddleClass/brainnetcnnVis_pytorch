@@ -1,6 +1,6 @@
 from preprocessing.read_data import cdata
 from utils.degrees_of_freedom import dataset_to_cluster, Q
-from utils.preproc_funcs import *
+from utils.util_funcs import *
 
 assert dataset_to_cluster in ['HCP', 'IMAGEN'], f'{dataset_to_cluster} not available for latent dimension transform'
 assert Q == 5, f'Latent feature extraction is only implemented for calculation over BigFive traits, Q==5'

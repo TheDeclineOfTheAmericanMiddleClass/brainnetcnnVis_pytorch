@@ -736,7 +736,7 @@ def onehot_to_multiclass(a):
 
 
 def namestr(obj, namespace):
-    return [name for name in namespace if namespace[name] is obj]
+    return [name for name in namespace if namespace[name] is obj][0]
 
 
 def NEOFFIdomain_latent_transform(data, dataset='HCP', Q=5):
@@ -813,3 +813,8 @@ def derive_HCP_NEOFFI60_scores():
         HCP_NEOscored[dom_names[i]] = HCP_NEOscored[for_items + rev_items].sum(axis=1)
 
     return HCP_NEOscored
+
+
+class Bunch(object):
+    def __init__(self, adict):
+        self.__dict__.update(adict)
