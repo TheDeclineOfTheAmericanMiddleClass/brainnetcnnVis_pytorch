@@ -92,15 +92,14 @@ def main(args):
         cdata = cdata.dropna(dim='subject')  # dropping nan values
 
     # add Gerlach soft-clustering scores to cdata
-    if bunch.chosen_dir == ['HCP_alltasks_268']:
+    if bunch.chosen_dir == ['HCP_alltasks_268']:  # TODO: change to be specified form subject numbers
         import pickle
 
         HCP_gmm_cluster_IPIP5 = pickle.load(
             open('personality-types/data_filter/gmm_cluster13_IPIP5.pkl', "rb"))  # read in file
 
         cluster_labels = HCP_gmm_cluster_IPIP5['labels'].T
-        cluster_labels = np.log10(
-            cluster_labels)  # log-likelihoods of cluster membership TODO: comment out if no improvement
+        cluster_labels = np.log10(cluster_labels)  # loglik of cluster membership
         ns_cluster_args = (HCP_gmm_cluster_IPIP5['enrichment'] > 1.25) & (
                 HCP_gmm_cluster_IPIP5['pval'] < .01)  # non-spurious clusters
 

@@ -110,9 +110,8 @@ def main(args):
 
     # Setting up multiclass classification with one-hot encoding
     if multiclass:
-        y_unique = np.unique(Y)
         Y = multiclass_to_onehot(Y).astype(float)  # ensures Y is not of type object
-        y_weights = Y.sum(axis=0) / len(Y)  # class weighting in dataset
+        y_weights = Y.sum(axis=0) / len(Y)  # class weighting in dataset (inverse of class frequency)
         y_weights_dict = dict(zip(range(len(y_weights)), y_weights))
 
     if bunch.data_are_matrices:
@@ -195,9 +194,15 @@ def main(args):
     X = cdata
     del cdata
 
-    return dict(multi_outcome=multi_outcome, X=X, Y=Y, num_outcome=num_outcome, num_classes=num_classes,
-                multiclass=multiclass, partition_subs=partition_subs, partition_inds=partition_inds,
-                y_weights=y_weights, chosen_Xdatavars=chosen_Xdatavars, y_weights_dict=y_weights_dict)
+    out = dict(multi_outcome=multi_outcome, X=X, Y=Y, num_outcome=num_outcome, num_classes=num_classes,
+               multiclass=multiclass, partition_subs=partition_subs, partition_inds=partition_inds,
+               chosen_Xdatavars=chosen_Xdatavars)
+
+    if multiclass:  # add class weights
+        out['y_weights_dict'] = y_weights_dict
+        out['y_weights'] = y_weights
+
+    return out
 
 
 if __name__ == '__main__':

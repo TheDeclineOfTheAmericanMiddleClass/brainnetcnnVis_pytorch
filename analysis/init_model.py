@@ -17,9 +17,9 @@ def main(args):
     testset = bunch.HCPDataset(mode="test")
     valset = bunch.HCPDataset(mode="valid")
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=1, pin_memory=False)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1, pin_memory=False)
-    valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, num_workers=1, pin_memory=False)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, pin_memory=False, num_workers=0)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=0)
+    valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=0)
 
     # Creating the model
     if bunch.predicted_outcome == ['Gender'] and bunch.architecture == 'yeo_sex':
@@ -67,7 +67,7 @@ def main(args):
     else:
         criterion = torch.nn.MSELoss().cuda(bunch.device)  # shows loss for each outcome
 
-    def train():  # training in mini batches
+    def train(net):  # training in mini batches
 
         net.train()
         running_loss = 0.0
@@ -144,7 +144,7 @@ def main(args):
             # print('squeezing y_true...')
             return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
 
-    def test():
+    def test(net):
         global loss
         net.eval()
         test_loss = 0

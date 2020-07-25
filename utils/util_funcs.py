@@ -19,17 +19,18 @@ from scipy.linalg import logm, inv
 
 
 # read subjects' demographic data
-def read_dem_data(subnums):
+def read_dem_data(subnums=None):
     # Demographic data
     behavioral = pd.read_csv('data/hcp/behavioral.csv')
     restricted = pd.read_csv('data/hcp/restricted.csv')
 
-    # Specifying indices of overlapping subjects with subnums
-    subInd = np.where(np.isin(restricted["Subject"], subnums))[0]
+    if subnums is not None:
+        # Specifying indices of overlapping subjects with subnums
+        subInd = np.where(np.isin(restricted["Subject"], subnums))[0]
 
-    # Only using data from subnums
-    restricted = restricted.reindex(subInd)
-    behavioral = behavioral.reindex(subInd)
+        # Only using data from subnums
+        restricted = restricted.reindex(subInd)
+        behavioral = behavioral.reindex(subInd)
 
     return restricted, behavioral
 
@@ -750,7 +751,7 @@ def NEOFFIdomain_latent_transform(data, dataset='HCP', Q=5):
     """
 
     # read in personality data
-    NEO_keys = list(filter(lambda x: x.startswith('NEO'), list(data.keys())))
+    NEO_keys = list(filter(lambda x: x.startswith('NEO'), list(data.keys())))  # TODO ensure same order as in Gerlach
     try:  # data as xarray DA
         feature_info = data[NEO_keys].to_array().values
     except AttributeError:  # data as pandas DF
@@ -772,7 +773,8 @@ def NEOFFIdomain_latent_transform(data, dataset='HCP', Q=5):
     latent_data = (latent_data - z_mu) / z_var  # z-scoring
 
     # saving as file, to be run through soft-cluster anaylsis
-    np.save(f'personality-types/data_filter/{dataset}_ipip{Q}_domain_latent_transform.npy', latent_data)
+    np.save(f'personality-types/data_filter/{dataset}_ipip{Q}_domain_latent_transform.npy',
+            latent_data)  # TODO: save subnums in pd dataframe
 
 
 def derive_HCP_NEOFFI60_scores():

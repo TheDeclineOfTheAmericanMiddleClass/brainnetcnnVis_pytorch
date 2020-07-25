@@ -2,6 +2,7 @@ import datetime
 
 import numpy as np
 import torch
+import torch.utils.data.dataset
 import xarray as xr
 from scipy.stats import pearsonr
 from sklearn.metrics import balanced_accuracy_score
@@ -13,8 +14,6 @@ from utils.util_funcs import Bunch
 def main(args):
     bunch = Bunch(args)
 
-    net = bunch.net
-
     # setting up xarray to hold performance metrics
     sets = ['train', 'test']
     metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
@@ -23,17 +22,16 @@ def main(args):
     performance = xr.DataArray(alloc_data, coords=[np.arange(bunch.nbepochs), sets, metrics, bunch.predicted_outcome],
                                dims=['epoch', 'set', 'metrics', 'outcome'])
 
-    # if multi_outcome:
-    #     performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
-    #                                dims=['epoch', 'set', 'metrics', 'outcome'])
-    # else:
-    #     performance = xr.DataArray(alloc_data, coords=[np.arange(nbepochs), sets, metrics, predicted_outcome],
-    #                                dims=['epoch', 'set', 'metrics', 'outcome'])
-
     print('Using data: ', bunch.chosen_Xdatavars, '\n Predicting:', ", ".join(bunch.predicted_outcome))
 
+    # if passed to args, loading in model and training funcs
+    net = bunch.net
+    assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'  # ensure model parameters are on GPU
+    test = bunch.test
+    train = bunch.train
+
     # initial prediction from starting weights
-    preds, y_true, loss_test = bunch.test()
+    preds, y_true, loss_test = test(net)
 
     if bunch.multi_outcome:  # calculate predictive performance of multiple variables
         mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(bunch.predicted_outcome))])
@@ -45,10 +43,11 @@ def main(args):
 
     elif bunch.multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
-        acc_1 = balanced_accuracy_score(preds, y_true)
+        print(preds, y_true)
+        # acc_1 = balanced_accuracy_score(y_true, preds)
+        acc_1 = balanced_accuracy_score(y_true, preds, sample_weight=[bunch.y_weights_dict[x] for x in y_true])
         print("Init Network")
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.02}")
-
 
     elif not bunch.multiclass and not bunch.multi_outcome:  # calculate predictive performance of 1 variable
         mae_1 = mae(preds[:, 0], y_true[:, 0])
@@ -57,16 +56,11 @@ def main(args):
         print(f"Test Set : MAE for Engagement : {100 * mae_1:.02}")
         print("Test Set : pearson R for Engagement : %0.02f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
-    ######################################
-    # # Run Epochs of training and testing
-    ######################################
-
-    global epoch
-
+    # # train model
     for epoch in range(bunch.nbepochs):
 
-        trainp, trainy, loss_train = bunch.train()
-        preds, y_true, loss_test = bunch.test()
+        trainp, trainy, loss_train = train(net)
+        preds, y_true, loss_test = test(net)
 
         performance.loc[dict(epoch=epoch, set="test", metrics='loss')] = [loss_test]
         performance.loc[dict(epoch=epoch, set="train", metrics='loss')] = [loss_train]
@@ -95,15 +89,18 @@ def main(args):
                                                                                                        0],
                                                                                                        trainpears_all[:,
                                                                                                        1]]
+
         elif bunch.multiclass:
             preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
-            # acc, trainacc = balanced_accuracy_score(preds, y_true, sample_weight=[bunch.y_weights_dict[x] for x in y_true]), \
-            #                 balanced_accuracy_score(trainp, trainy, sample_weight=[bunch.y_weights_dict[x] for x in trainy])
-            acc, trainacc = balanced_accuracy_score(preds, y_true), \
-                            balanced_accuracy_score(trainp, trainy)
+            print(preds, y_true)
+            acc, trainacc = balanced_accuracy_score(y_true, preds,
+                                                    sample_weight=[bunch.y_weights_dict[x] for x in y_true]), \
+                            balanced_accuracy_score(trainy, trainp,
+                                                    sample_weight=[bunch.y_weights_dict[x] for x in trainy])
+            # acc, trainacc = balanced_accuracy_score(y_true, preds), balanced_accuracy_score(trainy, trainp)
 
-            print(f"{bunch.predicted_outcome}, Test accuracy : {acc:.02}")
+            print(f"{bunch.predicted_outcome}, Test accuracy : {acc:.03}")
 
             performance.loc[dict(epoch=epoch, set="test", metrics=['accuracy'])] = acc
             performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'])] = trainacc
@@ -112,7 +109,7 @@ def main(args):
             mae_1, trainmae_1 = mae(preds, y_true), mae(trainp, trainy)
             pears_1, trainpears_1 = pearsonr(preds[:, 0], y_true[:, 0]), pearsonr(trainp[:, 0], trainy[:, 0])
             print(
-                f"{bunch.predicted_outcome} : Test MAE : {mae_1:.02}, Test pearson R: {pears_1[0]:.02} (p = {pears_1[1]:.04})")
+                f"{bunch.predicted_outcome} : Test MAE : {mae_1:.03}, Test pearson R: {pears_1[0]:.03} (p = {pears_1[1]:.04})")
 
             performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'])] = np.array(
                 [mae_1, pears_1[0], pears_1[1]])[:, None]
@@ -121,10 +118,7 @@ def main(args):
                  trainpears_1[0],
                  trainpears_1[1]])[:, None]
 
-        ####################u
-        ## EARLY STOPPING ##
-        ####################
-        # Checking every ep_int epochs. If there is no improvement on performance metrics, stop training
+        # Checking every ep_int epochs. If there is no improvement on performance metrics, stop training early
         if bunch.early:
             if epoch > bunch.min_ep:
                 if bunch.multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
@@ -196,6 +190,7 @@ def main(args):
           f"\npearson p-value: {performance.loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
           f"\naccuracy: {performance.loc[dict(set='test', metrics='accuracy', epoch=best_test_epoch)].values.squeeze()}")
 
+    return dict(performance=performance)
 
 if __name__ == '__main__':
     main()
