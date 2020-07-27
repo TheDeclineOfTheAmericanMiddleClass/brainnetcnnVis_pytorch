@@ -43,7 +43,8 @@ if multi_outcome:  # calculate predictive performance of multiple variables
 
 elif multiclass:  # calculate classification performance
     preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
-    acc_1 = balanced_accuracy_score(preds, y_true)
+    print(y_true, preds)
+    acc_1 = balanced_accuracy_score(y_true, preds)
     print("Init Network")
     print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.02}")
 
@@ -94,7 +95,7 @@ for epoch in range(nbepochs):
     elif multiclass:
         preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                         np.argmax(trainp, 1), np.argmax(trainy, 1)
-        acc, trainacc = balanced_accuracy_score(preds, y_true), balanced_accuracy_score(trainp, trainy)
+        acc, trainacc = balanced_accuracy_score(y_true, preds), balanced_accuracy_score(trainy, trainp)
 
         print(f"{predicted_outcome}, Test accuracy : {acc:.02}")
 

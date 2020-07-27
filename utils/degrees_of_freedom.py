@@ -1,7 +1,6 @@
 from utils.var_names import multiclass_outcomes
 
-# TODO: create utils folder
-# Degrees of freedom in the model input/output # TODO: read in changing DoF from dof_parser
+# Degrees of freedom in the model input/output
 chosen_dir = ['HCP_alltasks_268']  # list of data keys in var(data_directories), pointing to data to train on
 chosen_tasks = ['rest1']  # list of 'HCP_alltasks_268' tasks to train on; set to ['NA'] if directory unused
 predicted_outcome = ['Gender']  # TODO: identify non-spurious clusters to predict
