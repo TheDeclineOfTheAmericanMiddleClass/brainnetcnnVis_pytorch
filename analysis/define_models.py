@@ -16,7 +16,6 @@ def main(args):
                 Kawahara_BNCNN=Kawahara_BNCNN,
                 FNN=FNN, FC90Net_YeoSex=FC90Net_YeoSex, Yeo58behaviors_BNCNN=Yeo58behaviors_BNCNN)
 
-
 if __name__ == '__main__':
     main()
 

@@ -67,8 +67,7 @@ def main(args):
     else:
         criterion = torch.nn.MSELoss().cuda(bunch.device)  # shows loss for each outcome
 
-    def train(net):  # training in mini batches
-
+    def train(net, optimizer):  # training in mini batches
         net.train()
         running_loss = 0.0
 
@@ -99,7 +98,7 @@ def main(args):
 
             loss.backward()
 
-            # This line is used to prevent the vanishing / exploding gradient problem
+            # prevents a vanishing / exploding gradient problem
             torch.nn.utils.clip_grad_norm_(net.parameters(),
                                            max_norm=bunch.max_norm)  # TODO: see if max_norm size appropriate
 
@@ -216,7 +215,7 @@ def main(args):
             m.weight.data.uniform_(-he_lim, he_lim)
             print(f'\nWeight initializations: {m.weight}')
 
-    return dict(train=train, test=test, net=net)
+    return dict(optimizer=optimizer, train=train, test=test, net=net)
 
 
 if __name__ == '__main__':

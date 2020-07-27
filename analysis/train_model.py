@@ -14,6 +14,20 @@ from utils.util_funcs import Bunch
 def main(args):
     bunch = Bunch(args)
 
+    # if passed to args, loading in model and training funcs
+    net = bunch.net
+
+    # # Putting the model on the GPU
+    # if bunch.use_cuda:
+    #     net = net.cuda()
+    #     cudnn.benchmark = True
+
+    assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'  # ensure model parameters are on GPU
+
+    optimizer = bunch.optimizer
+    test = bunch.test
+    train = bunch.train
+
     # setting up xarray to hold performance metrics
     sets = ['train', 'test']
     metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
@@ -24,19 +38,13 @@ def main(args):
 
     print('Using data: ', bunch.chosen_Xdatavars, '\n Predicting:', ", ".join(bunch.predicted_outcome))
 
-    # if passed to args, loading in model and training funcs
-    net = bunch.net
-    assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'  # ensure model parameters are on GPU
-    test = bunch.test
-    train = bunch.train
-
     # initial prediction from starting weights
+    print("Init Network")
     preds, y_true, loss_test = test(net)
 
     if bunch.multi_outcome:  # calculate predictive performance of multiple variables
         mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(bunch.predicted_outcome))])
         pears_all = np.array([list(pearsonr(y_true[:, i], preds[:, i])) for i in range(len(bunch.predicted_outcome))])
-        print("Init Network")
         for i in range(len(bunch.predicted_outcome)):
             print(
                 f"Test Set, {bunch.predicted_outcome[i]} : MAE : {100 * mae_all[i]:.02}, pearson R: {pears_all[i, 0]:.02}, p = {pears_all[i, 1]:.02}")
@@ -44,22 +52,20 @@ def main(args):
     elif bunch.multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
         print(preds, y_true)
-        # acc_1 = balanced_accuracy_score(y_true, preds)
-        acc_1 = balanced_accuracy_score(y_true, preds, sample_weight=[bunch.y_weights_dict[x] for x in y_true])
-        print("Init Network")
+        acc_1 = balanced_accuracy_score(y_true, preds)
+        # acc_1 = balanced_accuracy_score(y_true, preds, sample_weight=[bunch.y_weights_dict[x] for x in y_true])
         print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.02}")
 
     elif not bunch.multiclass and not bunch.multi_outcome:  # calculate predictive performance of 1 variable
         mae_1 = mae(preds[:, 0], y_true[:, 0])
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
-        print("Init Network")
         print(f"Test Set : MAE for Engagement : {100 * mae_1:.02}")
         print("Test Set : pearson R for Engagement : %0.02f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
     # # train model
     for epoch in range(bunch.nbepochs):
 
-        trainp, trainy, loss_train = train(net)
+        trainp, trainy, loss_train = train(net, optimizer)
         preds, y_true, loss_test = test(net)
 
         performance.loc[dict(epoch=epoch, set="test", metrics='loss')] = [loss_test]
@@ -94,11 +100,11 @@ def main(args):
             preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
             print(preds, y_true)
-            acc, trainacc = balanced_accuracy_score(y_true, preds,
-                                                    sample_weight=[bunch.y_weights_dict[x] for x in y_true]), \
-                            balanced_accuracy_score(trainy, trainp,
-                                                    sample_weight=[bunch.y_weights_dict[x] for x in trainy])
-            # acc, trainacc = balanced_accuracy_score(y_true, preds), balanced_accuracy_score(trainy, trainp)
+            # acc, trainacc = balanced_accuracy_score(y_true, preds,
+            #                                         sample_weight=[bunch.y_weights_dict[x] for x in y_true]), \
+            #                 balanced_accuracy_score(trainy, trainp,
+            #                                         sample_weight=[bunch.y_weights_dict[x] for x in trainy])
+            acc, trainacc = balanced_accuracy_score(y_true, preds), balanced_accuracy_score(trainy, trainp)
 
             print(f"{bunch.predicted_outcome}, Test accuracy : {acc:.03}")
 
