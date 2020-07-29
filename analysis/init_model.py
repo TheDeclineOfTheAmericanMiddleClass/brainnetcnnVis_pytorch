@@ -57,17 +57,17 @@ def main(args):
     else:
         raise KeyError(f'{bunch.optimizer} is not a valid optimizer. Please try again.')
 
-    if bunch.multiclass:
+    # # defining loss functions
+    if bunch.multiclass:  # TODO: cuda(bunch.device), if necessary
         if bunch.num_classes == 2:
-            criterion = nn.BCELoss(weight=torch.Tensor(bunch.y_weights)).cuda(
-                bunch.device)  # balanced Binary Cross Entropy as loss function
+            criterion = nn.BCELoss(
+                weight=torch.Tensor(bunch.y_weights)).cuda()  # balanced Binary Cross Entropy as loss function
         elif bunch.num_classes > 2:
-            criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights)).cuda(bunch.device)
-
+            criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights)).cuda()
     else:
-        criterion = torch.nn.MSELoss().cuda(bunch.device)  # shows loss for each outcome
+        criterion = torch.nn.MSELoss().cuda()
 
-    def train(net, optimizer):  # training in mini batches
+    def train():  # training in mini batches
         net.train()
         running_loss = 0.0
 
@@ -89,12 +89,10 @@ def main(args):
             outputs = net(inputs)
             targets = targets.view(outputs.size())
 
-            try:
+            if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
+            else:
                 loss = criterion(input=outputs, target=targets)
-            except RuntimeError:
-                if bunch.multiclass:
-                    loss = criterion(input=outputs,
-                                     target=torch.argmax(targets.data, 1))
 
             loss.backward()
 
@@ -143,7 +141,7 @@ def main(args):
             # print('squeezing y_true...')
             return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
 
-    def test(net):
+    def test():
         global loss
         net.eval()
         test_loss = 0
@@ -162,12 +160,10 @@ def main(args):
                 outputs = net(inputs)
                 targets = targets.view(outputs.size())
 
-                try:
+                if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                    loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
+                else:
                     loss = criterion(input=outputs, target=targets)
-                except RuntimeError:
-                    if bunch.multiclass:
-                        loss = criterion(input=outputs,
-                                         target=torch.argmax(targets.data, 1))
 
                 test_loss += loss.data.mean(0)  # only predicting 1 feature
 
@@ -215,8 +211,7 @@ def main(args):
             m.weight.data.uniform_(-he_lim, he_lim)
             print(f'\nWeight initializations: {m.weight}')
 
-    return dict(optimizer=optimizer, train=train, test=test, net=net)
-
+    return dict(init_optimizer=optimizer, train=train, test=test, net=net)
 
 if __name__ == '__main__':
     main()

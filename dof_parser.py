@@ -21,7 +21,7 @@ in_out.add_argument("-mo", "--model", required=True, choices=['BNCNN', 'SVM', 'G
 
 in_out.add_argument('--architecture',
                     choices=['usama', 'yeo_sex', 'kawahara', 'usama', 'parvathy_v2', 'FC90Net', 'yeo_58'],
-                    default='usama', help='brainnetcnn architecture', nargs=1)
+                    default='usama', help='brainnetcnn architecture', nargs='?')
 
 # data transformation args
 transforms = parser.add_argument_group('transforms', 'data transformation params')
@@ -157,14 +157,23 @@ if args.model == ['BNCNN']:  # TODO: pass series of updated dictionaries to each
 
     print('loading model data...')
     pargs.update(load_model_data.main(pargs))
+
     print('defining models...')
-    from analysis import define_models
+    from analysis import define_models  # import must directly precede define_models.main()
 
     pargs.update(define_models.main(pargs))
     print('initializing model...')
     pargs.update(init_model.main(pargs))
     print('training model...')
     pargs.update(train_model.main(pargs))
+
+    # global net
+    # global optimizer
+    # global criterion
+    # net, optimizer, criterion, loss = None, None, None, None
+    # print('defining, initializing, and training model...')
+    # run_model2.main(pargs)
+
     print('\nBNCNN training done!\n')
 
     if args.plot_performance:

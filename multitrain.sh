@@ -3,12 +3,12 @@
 # 10 datasets (all HCP tasks separately + all)
 
 # 12 outcomes ...
-# 3 multioutcome continuous (all OCEAN, all soft-cluster, non-spurious soft-cluster)
-# 8 continuous prediction domain personality outcomes (OCEAN separately, each non-spurious soft-clusters {2,6,9})
+# 3 multi-outcome continuous (all OCEAN, all soft-cluster, non-spurious soft-cluster)
+# 8 single-outcome continuous (OCEAN separately, each non-spurious soft-clusters {2,6,9})
 # 1 multiclass (hardcluster)
 
 datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
-outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N' 'hardcluster' 'softcluster_2' 'softcluster_6' 'softcluster_9')
+outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N' 'softcluster_2' 'softcluster_6' 'softcluster_9' 'hardcluster' )
 models=('BNCNN' 'SVM')
 
 # multiple tasks, multiple outcomes (only BNCNN)

@@ -14,17 +14,7 @@ from utils.util_funcs import Bunch
 def main(args):
     bunch = Bunch(args)
 
-    # if passed to args, loading in model and training funcs
     net = bunch.net
-
-    # # Putting the model on the GPU
-    # if bunch.use_cuda:
-    #     net = net.cuda()
-    #     cudnn.benchmark = True
-
-    assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'  # ensure model parameters are on GPU
-
-    optimizer = bunch.optimizer
     test = bunch.test
     train = bunch.train
 
@@ -40,7 +30,7 @@ def main(args):
 
     # initial prediction from starting weights
     print("Init Network")
-    preds, y_true, loss_test = test(net)
+    preds, y_true, loss_test = test()
 
     if bunch.multi_outcome:  # calculate predictive performance of multiple variables
         mae_all = np.array([mae(y_true[:, i], preds[:, i]) for i in range(len(bunch.predicted_outcome))])
@@ -51,22 +41,21 @@ def main(args):
 
     elif bunch.multiclass:  # calculate classification performance
         preds, y_true = np.argmax(preds, 1), np.argmax(y_true, 1)
-        print(preds, y_true)
+        # print(preds, '\n', y_true)
         acc_1 = balanced_accuracy_score(y_true, preds)
-        # acc_1 = balanced_accuracy_score(y_true, preds, sample_weight=[bunch.y_weights_dict[x] for x in y_true])
-        print(f"Test Set : Accuracy for Engagement : {100 * acc_1:.02}")
+        print(f"Test Set : Accuracy for Engagement : {acc_1:.03}")
 
     elif not bunch.multiclass and not bunch.multi_outcome:  # calculate predictive performance of 1 variable
         mae_1 = mae(preds[:, 0], y_true[:, 0])
         pears_1 = pearsonr(preds[:, 0], y_true[:, 0])
-        print(f"Test Set : MAE for Engagement : {100 * mae_1:.02}")
+        print(f"Test Set : MAE for Engagement : {mae_1:.02}")
         print("Test Set : pearson R for Engagement : %0.02f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
     # # train model
     for epoch in range(bunch.nbepochs):
 
-        trainp, trainy, loss_train = train(net, optimizer)
-        preds, y_true, loss_test = test(net)
+        trainp, trainy, loss_train = train()
+        preds, y_true, loss_test = test()
 
         performance.loc[dict(epoch=epoch, set="test", metrics='loss')] = [loss_test]
         performance.loc[dict(epoch=epoch, set="train", metrics='loss')] = [loss_train]
@@ -99,14 +88,9 @@ def main(args):
         elif bunch.multiclass:
             preds, y_true, trainp, trainy = np.argmax(preds, 1), np.argmax(y_true, 1), \
                                             np.argmax(trainp, 1), np.argmax(trainy, 1)
-            print(preds, y_true)
-            # acc, trainacc = balanced_accuracy_score(y_true, preds,
-            #                                         sample_weight=[bunch.y_weights_dict[x] for x in y_true]), \
-            #                 balanced_accuracy_score(trainy, trainp,
-            #                                         sample_weight=[bunch.y_weights_dict[x] for x in trainy])
+            # print(preds, y_true)
             acc, trainacc = balanced_accuracy_score(y_true, preds), balanced_accuracy_score(trainy, trainp)
-
-            print(f"{bunch.predicted_outcome}, Test accuracy : {acc:.03}")
+            print(f"{bunch.predicted_outcome}, Test accuracy : {acc:.03}, Train accuracy: {trainacc:.03}")
 
             performance.loc[dict(epoch=epoch, set="test", metrics=['accuracy'])] = acc
             performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'])] = trainacc
