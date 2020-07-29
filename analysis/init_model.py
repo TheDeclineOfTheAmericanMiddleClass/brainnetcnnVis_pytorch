@@ -87,12 +87,10 @@ def train():  # training in mini batches
         outputs = net(inputs)
         targets = targets.view(outputs.size())
 
-        try:
+        if multiclass and num_classes > 2:
+            loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
+        else:
             loss = criterion(input=outputs, target=targets)
-        except RuntimeError:
-            if multiclass:
-                loss = criterion(input=outputs,
-                                 target=torch.argmax(targets.data, 1))
 
         loss.backward()
 
@@ -159,12 +157,10 @@ def test():
             outputs = net(inputs)
             targets = targets.view(outputs.size())
 
-            try:
+            if multiclass and num_classes > 2:
+                loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
+            else:
                 loss = criterion(input=outputs, target=targets)
-            except RuntimeError:
-                if multiclass:
-                    loss = criterion(input=outputs,
-                                     target=torch.argmax(targets.data, 1))
 
             test_loss += loss.data.mean(0)  # only predicting 1 feature
 
