@@ -152,23 +152,29 @@ if args.verbose:
           f"{args.chosen_dir} directory, with tasks: {args.chosen_tasks} data...\n")
     print(pargs, '\n')
 
-# reading in data
-from preprocessing import read_data
-
-print('reading data...')
-pargs.update(read_data.main(pargs))
 
 # # training models
 if args.model == ['BNCNN']:
 
-    # TODO: test training of basic torch model
+    # # TODO: test training of basic torch model. IT WORKS OKAY!
+    # from analysis import parser_test_model, parser_test
+    # pargs = parser_test.main()
+    # parser_test_model.main(pargs)
+
+    # TODO: triple-check if code all-in-one script works
+    # print('defining, initializing, and training model...')
+    # run_model2.main(pargs)
+
+    # TODO: train model, module-wise
+    from preprocessing import read_data
+
+    print('reading data...')
+    pargs.update(read_data.main(pargs))
 
     from analysis import load_model_data, init_model, train_model
-    from display_results import plot_model_results
 
     print('loading model data...')
     pargs.update(load_model_data.main(pargs))
-
     print('defining models...')
     from analysis import define_models  # import must directly precede define_models.main()
 
@@ -178,20 +184,19 @@ if args.model == ['BNCNN']:
     print('training model...')
     pargs.update(train_model.main(pargs))
 
-    # global net
-    # global optimizer
-    # global criterion
-    # net, optimizer, criterion, loss = None, None, None, None
-    # print('defining, initializing, and training model...')
-    # run_model2.main(pargs)
-
     print('\nBNCNN training done!\n')
 
     if args.plot_performance:
+        from display_results import plot_model_results
         plot_model_results.main(args)
 
 elif args.model == ['SVM']:
+
     from preprocessing import read_data
+
+    print('reading data...')
+    pargs.update(read_data.main(pargs))
+
     from analysis import load_model_data, train_shallow_networks
 
     print('loading model data...')

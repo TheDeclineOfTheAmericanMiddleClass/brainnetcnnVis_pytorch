@@ -17,9 +17,9 @@ def main(args):
     testset = bunch.HCPDataset(mode="test")
     valset = bunch.HCPDataset(mode="valid")
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, pin_memory=False, num_workers=0)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=0)
-    valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=0)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, pin_memory=False, num_workers=1)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
+    valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
 
     # Creating the model
     if bunch.predicted_outcome == ['Gender'] and bunch.architecture == 'yeo_sex':
@@ -95,12 +95,11 @@ def main(args):
 
             loss.backward()
 
-            # prevents a vanishing / exploding gradient problem
-            torch.nn.utils.clip_grad_norm_(net.parameters(),
-                                           max_norm=bunch.max_norm)  # TODO: see if max_norm size appropriate
-
-            for p in net.parameters():
-                p.data.add_(-bunch.lr, p.grad.data)
+            # # prevents a vanishing / exploding gradient problem
+            # torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=bunch.max_norm)  # TODO: see if max_norm size appropriate
+            #
+            # for p in net.parameters():
+            #     p.data.add_(-bunch.lr, p.grad.data)
 
             optimizer.step()
 
