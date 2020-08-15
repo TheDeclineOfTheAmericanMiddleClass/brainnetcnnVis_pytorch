@@ -169,21 +169,7 @@ model_preamble = f"BNCNN_{architecture}_{po}_{cXdv}" \
 filename_model = model_preamble + '_model.pt'
 torch.save(net, f'models/{filename_model}')
 
-# Save trained model performance
-performance = performance.assign_coords(stop_int=epoch - ep_int)  # adding early stop epoch to xarray
-performance = performance.expand_dims('stop_int')
-performance = performance.assign_coords(rundate=rundate)  # adding rundate to xarray
-performance = performance.expand_dims('rundate')
-performance = performance.assign_coords(
-    chosen_Xdatavars=str(chosen_Xdatavars))  # addinng datasets trained on to xarray
-performance = performance.expand_dims('chosen_Xdatavars')
-
-filename_performance = model_preamble + '_performance.nc'
-performance.name = filename_performance  # updating xarray name internally
-
-performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
-
-# Print best test-set results
+# get best test-set results
 if multiclass:
     best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
 elif multi_outcome:  # best epoch has lowest mean error
@@ -191,6 +177,20 @@ elif multi_outcome:  # best epoch has lowest mean error
 else:
     best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
 
+# Save trained model performance
+performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=cXdv, predicted_outcome=po,
+                                       transformations=transformations, deconfound_flavor=deconfound_flavor,
+                                       architecture=architecture, multiclass=multiclass,
+                                       multi_outcome=multi_outcome, best_test_epoch=best_test_epoch)
+if early:
+    performance = performance.assign_attrs(stop_int=epoch - ep_int)  # adding early stop epoch to xarray
+
+filename_performance = model_preamble + '_performance.nc'
+performance.name = filename_performance  # updating xarray name internally
+
+performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
+
+# print best results
 print(f'\nBest test performance'
       f'\ndataset: {cXdv}'
       f'\noutcome: {po}'
