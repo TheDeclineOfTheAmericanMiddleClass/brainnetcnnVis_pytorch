@@ -16,7 +16,8 @@ in_out.add_argument("-cd", "--chosen_dir", required=True, choices=list(data_dire
                     help='the data directories')
 in_out.add_argument("-ct", "--chosen_tasks", required=True, choices=list(HCP268_tasks.keys()), type=str,
                     action='append', help="the HCP268_tasks to train on")
-in_out.add_argument("-mo", "--model", required=True, choices=['BNCNN', 'SVM', 'Gerlach_cluster'], type=str,
+in_out.add_argument("-mo", "--model", required=True, choices=['BNCNN', 'SVM', 'Gerlach_cluster', 'FC90', 'ElasticNet'],
+                    type=str,
                     help='the model to use', nargs=1)
 
 in_out.add_argument('--architecture',
@@ -90,6 +91,10 @@ if uncond_args.model in [['BNCNN'], ['SVM']]:
 
     if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
         in_out.add_argument('po_str', action='store_const', const='softcluster_all')
+    elif all(
+            [x in uncond_args.predicted_outcome for x in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N']]):
+        print('Using all NEOFAC dimensions...')
+        in_out.add_argument('po_str', action='store_const', const='NEOFAC_all')
     else:
         in_out.add_argument('po_str', action='store_const', const='_'.join(uncond_args.predicted_outcome))
 
@@ -120,8 +125,10 @@ logic.add_argument('chosen_Xdatavars', action='store_const', const=chosen_Xdatav
 # # 2nd round of parsing, to set variable conditional on the conditional variables
 cond_args = parser.parse_args()
 
-if cond_args.chosen_Xdatavars == list(HCP268_tasks.keys())[:-1]:  # If all tasks, use simplified name HCP_alltasks_268
-    in_out.add_argument('cXdv_str', action='store_const', const='HCP_alltasks_268')
+# If all tasks, use simplified name HCP_alltasks_268
+if all([x in cond_args.chosen_tasks for x in list(HCP268_tasks.keys())[:-1]]):
+    print('Using all HCP 268 tasks...')
+    in_out.add_argument('cXdv_str', action='store_const', const='HCP_alltasks_268_all')
 else:
     in_out.add_argument('cXdv_str', action='store_const', const='_'.join(cond_args.chosen_Xdatavars))
 
@@ -138,10 +145,11 @@ if uncond_args.model == 'BNCNN' and 'Johann_mega_graph' in uncond_args.chosen_di
 args = parser.parse_args()  # parsing unconditional and conditional args
 pargs = vars(args)  # dict of passed args
 
+
 # # printing i/o of model
 if args.verbose:
     print(f"\nTraining {args.model} to predict {args.predicted_outcome} from "
-          f"{args.chosen_dir}_{args.chosen_tasks} data...\n")
+          f"{args.chosen_dir} directory, with tasks: {args.chosen_tasks} data...\n")
     print(pargs, '\n')
 
 # reading in data

@@ -95,19 +95,21 @@ def main(args):
     if bunch.chosen_dir == ['HCP_alltasks_268']:  # TODO: change to be specified form subject numbers
         import pickle
 
-        HCP_gmm_cluster_IPIP5 = pickle.load(
-            open('personality-types/data_filter/gmm_cluster13_IPIP5.pkl', "rb"))  # read in file
+        gmm_cluster = pickle.load(
+            open(f'personality-types/data_filter/gmm_cluster13_IPIP5.pkl',
+                 "rb"))  # read in file # TODO: update for IMAGEN, change hard coding
+        # open(f'personality-types/data_filter/{bunch.dataset_to_cluster}_gmm_cluster13_IPIP{bunch.Q}.pkl', "rb"))
 
-        cluster_labels = HCP_gmm_cluster_IPIP5['labels'].T
+        cluster_labels = gmm_cluster['labels'].T
         cluster_labels = np.log10(cluster_labels)  # loglik of cluster membership
-        ns_cluster_args = (HCP_gmm_cluster_IPIP5['enrichment'] > 1.25) & (
-                HCP_gmm_cluster_IPIP5['pval'] < .01)  # non-spurious clusters
+        ns_cluster_args = (gmm_cluster['enrichment'] > 1.25) & (
+                gmm_cluster['pval'] < .01)  # non-spurious clusters
 
         cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject',
                                             coords=dict(subject=cdata.subject.values))
         for i, x in enumerate(cluster_labels):
             cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(
-                dict(enrichment=HCP_gmm_cluster_IPIP5['enrichment'][i], pval=HCP_gmm_cluster_IPIP5['pval'][i],
+                dict(enrichment=gmm_cluster['enrichment'][i], pval=gmm_cluster['pval'][i],
                      non_spurious=ns_cluster_args[i]))
 
     subnums = cdata.subject.values

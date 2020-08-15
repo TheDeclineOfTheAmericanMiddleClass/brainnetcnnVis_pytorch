@@ -153,16 +153,15 @@ def main(args):
     # Save trained model performance
     performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                                            predicted_outcome=bunch.po_str, transformations=bunch.transformations,
-                                           deconfound_flavor=bunch.deconfound_flavor)
+                                           deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
+                                           multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome)
     if bunch.early:
         performance = performance.assign_attrs(stop_int=epoch - bunch.ep_int)  # adding early stop epoch to xarray
 
     filename_performance = model_preamble + '_performance.nc'
     performance.name = filename_performance  # updating xarray name internally
 
-    performance.to_netcdf(f'performance/BNCNN/{filename_performance}')  # saving performance
-
-    # Print best test-set results
+    # determining best test results
     if bunch.multiclass:
         best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
     elif bunch.multi_outcome:  # best epoch has lowest mean error
@@ -171,6 +170,12 @@ def main(args):
     else:
         best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
 
+    performance = performance.assign_attrs(
+        best_test_epoch=best_test_epoch)  # adding best test epoch # TODO: add to non-parsed branch as well
+
+    performance.to_netcdf(f'performance/BNCNN/{filename_performance}')  # saving performance
+
+    # Print best test-set results
     print(f'\nBest test performance'
           f'\ndataset: {bunch.cXdv_str}'
           f'\noutcome: {bunch.po_str}'

@@ -70,7 +70,7 @@ def main(args):
 
         # Save trained model performance #
         performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
-                                               predicted_outcome=bunch.po_str, transformations=bunch.transformations,
+                                               outcome=bunch.po_str, transformations=bunch.transformations,
                                                deconfound_flavor=bunch.deconfound_flavor)
 
         performance.to_netcdf(f'performance/{model_name}/{filename_performance}')  # saving performance
@@ -192,13 +192,17 @@ def main(args):
 
     # Training Networks
     print(
-        f'Training shallow networks to predict {", ".join(bunch.predicted_outcome)}, from data in {bunch.chosen_Xdatavars}...\n')
-    # FC90_cv_results = train_FC90net(shallowX_train, shallowY_train, scoring)
-    # Elastic_cv_results = train_ElasticNet(shallowX_train, shallowY_train, scoring)
-    SVM_cv_results = train_SVM(shallowX_train, shallowY_train, scoring)
+        f'Training {bunch.model} to predict {", ".join(bunch.predicted_outcome)}, from data in {bunch.chosen_Xdatavars}...\n')
+
+    if 'SVM' in bunch.model:
+        model_results = train_SVM(shallowX_train, shallowY_train, scoring)
+    elif 'FC90' in bunch.model:
+        model_results = train_FC90net(shallowX_train, shallowY_train, scoring)
+    elif 'ElasticNet' in bunch.model:
+        model_results = train_ElasticNet(shallowX_train, shallowY_train, scoring)
 
     # # Printing results
-    for results in [SVM_cv_results]:  # [FC90_cv_results, Elastic_cv_results, SVM_cv_results]:
+    for results in [model_results]:
         print(namestr(results, locals()), f'dataset(s): {bunch.chosen_Xdatavars}')
 
         if bunch.multiclass:
