@@ -3,7 +3,7 @@ from utils.var_names import multiclass_outcomes
 # Degrees of freedom in the model input/output
 chosen_dir = ['HCP_alltasks_268']  # list of data keys in var(data_directories), pointing to data to train on
 chosen_tasks = ['rest1']  # list of 'HCP_alltasks_268' tasks to train on; set to ['NA'] if directory unused
-predicted_outcome = ['Gender']  # TODO: identify non-spurious clusters to predict
+predicted_outcome = ['NEOFAC_N']  # TODO: identify non-spurious clusters to predict
 
 transformations = 'untransformed'  # 'positive definite', 'untransformed', 'tangent'
 tan_mean = 'harmonic'  # euclidean, harmonic

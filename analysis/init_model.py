@@ -2,7 +2,7 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data.dataset
 
 from analysis.define_models import *
-from analysis.load_model_data import multi_outcome, y_weights
+from analysis.load_model_data import multi_outcome
 from preprocessing.read_data import use_cuda, device
 from utils.degrees_of_freedom import predicted_outcome, architecture, optimizer, momentum, wd, lr, max_norm
 
@@ -54,6 +54,7 @@ else:
     raise KeyError(f'{optimizer} is not a valid optimizer. Please try again.')
 
 if multiclass:
+    from analysis.load_model_data import y_weights
     if num_classes == 2:
         criterion = nn.BCELoss(weight=torch.Tensor(y_weights)).cuda(
             device)  # balanced Binary Cross Entropy as loss function
