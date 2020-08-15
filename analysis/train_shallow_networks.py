@@ -172,3 +172,5 @@ for results in [SVM_cv_results]:  # [FC90_cv_results, Elastic_cv_results, SVM_cv
         print('balanced_accuracy: ', np.mean(results['test_balanced_accuracy']), '\n')
     else:
         print('MAE: ', -np.mean(results['test_neg_mean_absolute_error']), 'r^2: ', np.mean(results['test_r2']), '\n')
+
+# TODO: add performance saving

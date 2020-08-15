@@ -188,7 +188,7 @@ if early:
 filename_performance = model_preamble + '_performance.nc'
 performance.name = filename_performance  # updating xarray name internally
 
-performance.to_netcdf(f'performance/{filename_performance}')  # saving performance
+performance.to_netcdf(f'performance/BNCNN/{filename_performance}')  # saving performance
 
 # print best results
 print(f'\nBest test performance'
