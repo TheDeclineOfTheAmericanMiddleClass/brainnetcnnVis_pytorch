@@ -58,10 +58,9 @@ def main(args):
         raise KeyError(f'{bunch.optimizer} is not a valid optimizer. Please try again.')
 
     # # defining loss functions
-    if bunch.multiclass:  # TODO: cuda(bunch.device), if necessary
+    if bunch.multiclass:
         if bunch.num_classes == 2:
-            criterion = nn.BCELoss(
-                weight=torch.Tensor(bunch.y_weights)).cuda()  # balanced Binary Cross Entropy as loss function
+            criterion = nn.BCELoss(weight=torch.Tensor(bunch.y_weights)).cuda()  # balanced Binary Cross Entropy
         elif bunch.num_classes > 2:
             criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights)).cuda()
     else:

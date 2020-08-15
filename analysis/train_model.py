@@ -166,12 +166,12 @@ def main(args):
         best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
     elif bunch.multi_outcome:  # best epoch has lowest mean error
         best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].mean(
-            axis=-1).argmin().values  # TODO: ensure this still works after .assign_attrs
+            axis=-1).argmin().values
     else:
         best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
 
     performance = performance.assign_attrs(
-        best_test_epoch=best_test_epoch)  # adding best test epoch # TODO: add to non-parsed branch as well
+        best_test_epoch=best_test_epoch)  # adding best test epoch
 
     performance.to_netcdf(f'performance/BNCNN/{filename_performance}')  # saving performance
 

@@ -64,7 +64,7 @@ def main(args):
 
         # specifying filename
         rundate = datetime.datetime.now().strftime("%m-%d-%Y-%H-%M")
-        model_preamble = f"SVM_{bunch.po_str}_{bunch.cXdv_str}_{bunch.transformations}_{bunch.deconfound_flavor}{bunch.scl}_" + rundate
+        model_preamble = f"{model_name}_{bunch.po_str}_{bunch.cXdv_str}_{bunch.transformations}_{bunch.deconfound_flavor}{bunch.scl}_" + rundate
         filename_performance = model_preamble + '_performance.nc'
         performance.name = filename_performance  # updating xarray name internally
 
@@ -98,7 +98,6 @@ def main(args):
                                         verbose=True)
 
         print('...training complete!\n')
-        save_CV_results(cv_results, bunch.cv_folds, 'SVM')
 
         return cv_results
 
@@ -159,7 +158,6 @@ def main(args):
             cv_results = cross_validate(FC90Net, X_in, Y_in, cv=bunch.cv_folds, scoring=scoring, verbose=True)
 
         print('...training complete!\n')
-        save_CV_results(cv_results, bunch.cv_folds, 'FC90Net')
 
         return cv_results
 
@@ -186,7 +184,6 @@ def main(args):
                                         verbose=True)
 
         print('...training complete!\n')
-        save_CV_results(cv_results, bunch.cv_folds, 'ElasticNet')
 
         return cv_results
 
@@ -200,6 +197,9 @@ def main(args):
         model_results = train_FC90net(shallowX_train, shallowY_train, scoring)
     elif 'ElasticNet' in bunch.model:
         model_results = train_ElasticNet(shallowX_train, shallowY_train, scoring)
+
+    # saving results
+    save_CV_results(model_results, bunch.cv_folds, bunch.model[0])
 
     # # Printing results
     for results in [model_results]:

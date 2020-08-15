@@ -106,6 +106,7 @@ def main(args):
                 gmm_cluster['pval'] < .01)  # non-spurious clusters
 
         cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject',
+                                            # TODO: fix so prediction over all 13 classses
                                             coords=dict(subject=cdata.subject.values))
         for i, x in enumerate(cluster_labels):
             cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(

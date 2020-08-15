@@ -159,7 +159,10 @@ print('reading data...')
 pargs.update(read_data.main(pargs))
 
 # # training models
-if args.model == ['BNCNN']:  # TODO: pass series of updated dictionaries to each module
+if args.model == ['BNCNN']:
+
+    # TODO: test training of basic torch model
+
     from analysis import load_model_data, init_model, train_model
     from display_results import plot_model_results
 
