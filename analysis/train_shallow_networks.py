@@ -86,16 +86,11 @@ def main(args):
         elif bunch.multiclass:
             # clf = SGDClassifier(verbose=True, random_state=1234)
             clf = svm.SVC(kernel='linear', gamma='scale', verbose=True, random_state=1234, class_weight='balanced')
-            cv_results = cross_validate(clf, X_in, Y_in, cv=bunch.cv_folds,
-                                        scoring=['balanced_accuracy'],
-                                        verbose=True)
+            cv_results = cross_validate(clf, X_in, Y_in, cv=bunch.cv_folds, scoring=['balanced_accuracy'], verbose=True)
 
         else:
-            clf = svm.SVR(kernel='linear', gamma='scale',
-                          verbose=True)
-            cv_results = cross_validate(clf, X_in, Y_in, cv=bunch.cv_folds,
-                                        scoring=scoring,
-                                        verbose=True)
+            clf = svm.SVR(kernel='linear', gamma='scale', verbose=True)
+            cv_results = cross_validate(clf, X_in, Y_in, cv=bunch.cv_folds, scoring=scoring, verbose=True)
 
         print('...training complete!\n')
 
@@ -199,6 +194,7 @@ def main(args):
         model_results = train_ElasticNet(shallowX_train, shallowY_train, scoring)
 
     # saving results
+    model_results['test_neg_mean_absolute_error'] = -model_results['test_neg_mean_absolute_error']
     save_CV_results(model_results, bunch.cv_folds, bunch.model[0])
 
     # # Printing results
@@ -208,8 +204,8 @@ def main(args):
         if bunch.multiclass:
             print('balanced_accuracy: ', np.mean(results['test_balanced_accuracy']), '\n')
         else:
-            print('MAE: ', -np.mean(results['test_neg_mean_absolute_error']), 'r^2: ', np.mean(results['test_r2']),
-                  '\n')
+            # print('MAE: ', -np.mean(results['test_neg_mean_absolute_error']), 'r^2: ', np.mean(results['test_r2']),'\n')
+            print('MAE: ', -results['test_neg_mean_absolute_error'], 'r^2: ', results['test_r2'], '\n')
 
 
 if __name__ == '__main__':
