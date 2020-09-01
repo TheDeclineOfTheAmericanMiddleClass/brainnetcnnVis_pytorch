@@ -154,7 +154,8 @@ def main(args):
     performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                                            predicted_outcome=bunch.po_str, transformations=bunch.transformations,
                                            deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
-                                           multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome)
+                                           multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome,
+                                           confound_names=bunch.confound_names)
     if bunch.early:
         performance = performance.assign_attrs(stop_int=epoch - bunch.ep_int)  # adding early stop epoch to xarray
 
