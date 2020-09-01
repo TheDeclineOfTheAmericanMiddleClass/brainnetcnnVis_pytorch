@@ -727,8 +727,10 @@ def retrieve_name(var):
 
 def multiclass_to_onehot(Y):
     Y_classes = np.zeros((Y.squeeze().shape[0], len(np.unique(Y))))
+
     for i, x in enumerate(np.unique(Y)):
         Y_classes[[np.where(Y == x)[0]], i] = 1
+
     return Y_classes
 
 
