@@ -63,7 +63,7 @@ def main(args):
         raise NotImplementedError('X1Y1 not implementd yet. Please use another deconfounding method.')
         # TODO: implement X1Y1 deconfounding
 
-    if bunch.deconfound_flavor == 'X1Y1' or bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
+    if bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
         for i, datavar in enumerate(bunch.chosen_Xdatavars):
 
             dec_Xvar = f'dec_{"_".join(bunch.confound_names)}_{datavar}'  # name for positive definite transformed mats
@@ -77,7 +77,11 @@ def main(args):
             if bunch.confound_names is not None:  # getting confounds
                 confounds = [cdata[x].values for x in bunch.confound_names]
 
-                if bunch.scale_confounds:  # scaling confounds per train set alone
+                for i, confound_name in enumerate(bunch.confound_names):  # one-hot encoding class confounds
+                    if confound_name in multiclass_outcomes:
+                        _, confounds[i] = np.unique(confounds[i], return_inverse=True)
+
+                if bunch.scale_confounds:  # scaling confounds, per train set alone
                     confounds = [x / np.max(np.abs(x[partition_inds["train"]])) for x in confounds]
 
             print(f'Deconfounding {dec_Xvar} data ...')
@@ -123,7 +127,7 @@ def main(args):
 
                 pd_var = f'pd_{datavar}'  # name for positive definite transformed mats
 
-                if pd_var in list(cdata.data_vars):  # check if positive definite data already saved in xarray
+                if pd_var in list(cdata.data_vars):  # if positive definite data saved in xarray, do no transformation
                     continue
 
                 else:
@@ -142,9 +146,10 @@ def main(args):
 
                     del X_pd
 
-            # saving positive definite matrices, for each data iteration
-            if bunch.chosen_dir == ['HCP_alltasks_268'] and bunch.chosen_tasks == list(HCP268_tasks.keys())[:-1]:
-                cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
+                # saving positive definite matrices
+                if bunch.chosen_dir == ['HCP_alltasks_268']:
+                    print(f'Saving {pd_var} to xarray...')
+                    cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
         ###################################################################
         # # Projecting matrices into tangent space
@@ -162,7 +167,7 @@ def main(args):
                 # else:
                 #     np.save(saved_tan, tdata)
 
-                if tan_var in list(cdata.data_vars):  # check if positive definite data already saved in xarray
+                if tan_var in list(cdata.data_vars):  # if tangent data saved in xarray, do no projection
                     continue
 
                 print('Transforming all matrices into tangent space ...')
@@ -181,9 +186,10 @@ def main(args):
 
                 del X_tan
 
-            # saving tangent matrices, for each data iteration
-            if bunch.chosen_dir == ['HCP_alltasks_268'] and bunch.chosen_tasks == list(HCP268_tasks.keys())[:-1]:
-                cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')  # Saving when necessary
+                # saving tangent matrices, for each transformed
+                if bunch.chosen_dir == ['HCP_alltasks_268']:
+                    print(f'Saving {tan_var} to xarray...')
+                    cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
     # updating list of chosen data for training
     if bunch.transformations == 'tangent':
