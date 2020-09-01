@@ -5,7 +5,7 @@ import torch
 import xarray as xr
 
 from utils.util_funcs import Bunch, read_dem_data, read_mat_data
-from utils.var_names import HCP268_tasks, data_directories
+from utils.var_names import HCP268_tasks, data_directories, r_vars, b_vars
 
 
 def main(args):
@@ -20,8 +20,7 @@ def main(args):
 
         for i, cd in enumerate(bunch.chosen_dir):  # for all data_directories
 
-            if bunch.chosen_dir != [
-                'HCP_alltasks_268']:  # setting chosen_tasks if multiple are available in the directory
+            if bunch.chosen_dir != ['HCP_alltasks_268']:  # set chosen_tasks if multiple are available in the directory
                 chosen_tasks_in_dir = ['NA']
 
             elif bunch.chosen_dir == ['HCP_alltasks_268']:
@@ -78,9 +77,6 @@ def main(args):
 
     print('Finished reading in matrix data...reading HCP restricted and behavioral data...')
 
-    r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
-    b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender', 'PMAT24_A_CR']
-
     # if cdata doesn't have behavioral and restricted data, add it
     if np.all([r_var not in list(cdata.data_vars) for r_var in r_vars]) \
             and np.all([b_var not in list(cdata.data_vars) for b_var in b_vars]):
@@ -92,7 +88,7 @@ def main(args):
         cdata = cdata.dropna(dim='subject')  # dropping nan values
 
     # add Gerlach soft-clustering scores to cdata
-    if bunch.chosen_dir == ['HCP_alltasks_268']:  # TODO: change to be specified form subject numbers
+    if bunch.chosen_dir == ['HCP_alltasks_268']:
         import pickle
 
         gmm_cluster = pickle.load(
@@ -106,7 +102,6 @@ def main(args):
                 gmm_cluster['pval'] < .01)  # non-spurious clusters
 
         cdata['hardcluster'] = xr.DataArray(cluster_labels.argmax(axis=0), dims='subject',
-                                            # TODO: fix so prediction over all 13 classses
                                             coords=dict(subject=cdata.subject.values))
         for i, x in enumerate(cluster_labels):
             cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(

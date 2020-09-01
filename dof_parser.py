@@ -38,7 +38,8 @@ transforms.add_argument("-sc", "--scale_confounds", action='store_true', default
 hyper = parser.add_argument_group('hyper', 'model training hyperparams')
 hyper.add_argument('--optimizer', choices=['sgd', 'adam'], default='sgd', help='optimization strategy', nargs='?')
 hyper.add_argument('--momentum', default=0.9, type=float, help='momentum', nargs='?')
-hyper.add_argument('--lr', default=0.9, type=float, help='learning rate', nargs='?')
+hyper.add_argument('--lr', default=0.00001, type=float, help='learning rate',
+                   nargs='?')  # TODO: note learning rate .9 caused gradient issues
 hyper.add_argument('--wd', default=.0005, type=float, help=' weight decay', nargs='?')
 hyper.add_argument('--max_norm', default=1.5, type=float,
                    help='maximum value of normed gradients, to prevent explosion/vanishing', nargs='?')
@@ -155,17 +156,6 @@ if args.verbose:
 
 # # training models
 if args.model == ['BNCNN']:
-
-    # # TODO: test training of basic torch model. IT WORKS OKAY!
-    # from analysis import parser_test_model, parser_test
-    # pargs = parser_test.main()
-    # parser_test_model.main(pargs)
-
-    # TODO: triple-check if code all-in-one script works
-    # print('defining, initializing, and training model...')
-    # run_model2.main(pargs)
-
-    # TODO: train model, module-wise
     from preprocessing import read_data
 
     print('reading data...')
@@ -175,9 +165,10 @@ if args.model == ['BNCNN']:
 
     print('loading model data...')
     pargs.update(load_model_data.main(pargs))
-    print('defining models...')
+
     from analysis import define_models  # import must directly precede define_models.main()
 
+    print('defining models...')
     pargs.update(define_models.main(pargs))
     print('initializing model...')
     pargs.update(init_model.main(pargs))

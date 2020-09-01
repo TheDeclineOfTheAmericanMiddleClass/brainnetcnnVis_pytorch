@@ -30,18 +30,11 @@ models=('BNCNN' 'SVM')
 #  done
 #done
 
-# SVM only -- multiple tasks, single outcome
-outcomes=('NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N' 'softcluster_2' 'softcluster_6' 'softcluster_9' 'hardcluster' )
-for outcome in "${outcomes[@]}"; do
-  python dof_parser.py -v -po "$outcome" -mo SVM -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces
+# single task, single outcome
+for model in "${models[@]}"; do
+  for outcome in "${outcomes[@]}"; do
+    for dataset in "${datasets[@]}"; do
+      python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268
+    done
+  done
 done
-
-
-## single task, single outcome
-#for model in "${models[@]}"; do
-#  for outcome in "${outcomes[@]}"; do
-#    for dataset in "${datasets[@]}"; do
-#      python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268
-#    done
-#  done
-#done
