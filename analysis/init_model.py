@@ -1,7 +1,9 @@
 import numpy as np
+import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.utils.data.dataset
+from torch.autograd import Variable
 
 from utils.util_funcs import Bunch
 
@@ -43,11 +45,28 @@ def main(args):
 
     # Putting the model on the GPU
     if bunch.use_cuda:
-        net = net.cuda()
+        net = net.to(bunch.device)
         cudnn.benchmark = True
 
     # ensure model parameters are on GPU
     assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
+
+    # Following function are only applied to linear layers
+    def init_weights_he(m):
+        """ Weights initialization for the dense layers using He Uniform initialization
+         He et al., http://arxiv.org/abs/1502.01852
+        https://keras.io/initializers/#he_uniform
+    """
+        print(m)
+        if type(m) == torch.nn.Linear:
+            fan_in = net.dense1.in_features
+            print(f'In features for dense 1: {fan_in}')
+            he_lim = np.sqrt(6 / fan_in)  # Note: fixed error in he limit calculation (Feb 10, 2020)
+            print(f'he limit {he_lim}')
+            m.weight.data.uniform_(-he_lim, he_lim)
+            print(f'\nWeight initializations: {m.weight}')
+
+    # net.apply(init_weights_he)
 
     if bunch.optimizer == 'sgd':
         optimizer = torch.optim.SGD(net.parameters(), lr=bunch.lr, momentum=bunch.momentum, nesterov=True,
@@ -60,11 +79,11 @@ def main(args):
     # # defining loss functions
     if bunch.multiclass:
         if bunch.num_classes == 2:
-            criterion = nn.BCELoss(weight=torch.Tensor(bunch.y_weights)).cuda()  # balanced Binary Cross Entropy
+            criterion = nn.BCELoss(weight=torch.Tensor(bunch.y_weights).cuda())  # balanced Binary Cross Entropy
         elif bunch.num_classes > 2:
-            criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights)).cuda()
+            criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights).cuda())
     else:
-        criterion = torch.nn.MSELoss().cuda()
+        criterion = torch.nn.MSELoss()
 
     def train():  # training in mini batches
         net.train()
@@ -78,12 +97,14 @@ def main(args):
             if bunch.use_cuda:
                 if not bunch.multi_outcome and not bunch.multiclass:
                     # print('unsqueezing target for vstack...')
-                    inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
+                        1)  # unsqueezing for vstack
                 else:
                     # print('target left alone...')
-                    inputs, targets = inputs.cuda(), targets.cuda()
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device)
 
             optimizer.zero_grad()
+            inputs, targets = Variable(inputs), Variable(targets)
 
             outputs = net(inputs)
             targets = targets.view(outputs.size())
@@ -95,11 +116,16 @@ def main(args):
 
             loss.backward()
 
-            # # prevents a vanishing / exploding gradient problem
-            # torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=bunch.max_norm)  # TODO: see if max_norm size appropriate
-            #
-            # for p in net.parameters():
-            #     p.data.add_(-bunch.lr, p.grad.data)
+            # print('\ngradient after backward: ')
+            # for name, param in net.named_parameters(): # CONFIRMED! gradient issue
+            #     print(name, param.grad.abs().sum())
+
+            # TODO: see if max_norm size appropriate
+            # prevents a vanishing / exploding gradient problem
+            torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=bunch.max_norm)
+
+            for p in net.parameters():
+                p.data.add_(-bunch.lr, p.grad.data)
 
             optimizer.step()
 
@@ -150,10 +176,16 @@ def main(args):
 
         for batch_idx, (inputs, targets) in enumerate(testloader):
             if bunch.use_cuda:
-                if not bunch.multi_outcome and not bunch.multiclass:
-                    inputs, targets = inputs.cuda(), targets.cuda().unsqueeze(1)  # unsqueezing for vstack
+                if not bunch.multi_outcome and not bunch.multiclass:  # TODO: see if .to() works better than .cuda()
+                    # print('unsqueezing target for vstack...')
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
+                        1)  # unsqueezing for vstack
                 else:
-                    inputs, targets = inputs.cuda(), targets.cuda()
+                    # print('target left alone...')
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device)
+
+            with torch.no_grad():
+                inputs, targets = Variable(inputs), Variable(targets)
 
                 outputs = net(inputs)
                 targets = targets.view(outputs.size())
@@ -181,21 +213,6 @@ def main(args):
         else:
             # print('squeezing y_true...')
             return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
-
-    # Following function are only applied to linear layers
-    def init_weights_he(m):
-        """ Weights initialization for the dense layers using He Uniform initialization
-         He et al., http://arxiv.org/abs/1502.01852
-        https://keras.io/initializers/#he_uniform
-    """
-        print(m)
-        if type(m) == torch.nn.Linear:
-            fan_in = net.dense1.in_features
-            print(f'In features for dense 1: {fan_in}')
-            he_lim = np.sqrt(6 / fan_in)  # Note: fixed error in he limit calculation (Feb 10, 2020)
-            print(f'he limit {he_lim}')
-            m.weight.data.uniform_(-he_lim, he_lim)
-            print(f'\nWeight initializations: {m.weight}')
 
     def init_weights_XU(m):
         """Init weights per xavier uniform method"""

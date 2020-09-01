@@ -28,9 +28,13 @@ HCP268_tasks = {'rest1': 'rfMRI_REST1',
 predict_choices = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'Gender',
                    'Age_in_Yrs', 'PMAT24_A_CR', 'hardcluster'] + [f'softcluster_{i}' for i in range(1, 14)]
 
-multiclass_outcomes = ['Gender', 'hardcluster']
-
 # Subject splits, by twin status, in .txt format
 subnum_paths = dict(test='subject_splits/final_test_list.txt',
                     train='subject_splits/final_train_list.txt',
                     val='subject_splits/final_val_list.txt')
+
+# restricted and behavioral variables in HCP dataset
+r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs']
+b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender', 'PMAT24_A_CR']
+
+multiclass_outcomes = ['Gender', 'hardcluster']
