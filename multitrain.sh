@@ -22,7 +22,7 @@ models=('BNCNN' 'SVM')
 #  python dof_parser.py -v -ct "$dataset" -mo BNCNN -cd HCP_alltasks_268 -po softcluster_2 -po softcluster_6 -po softcluster_9
 #  python dof_parser.py -v -ct "$dataset" -mo BNCNN -cd HCP_alltasks_268 -po softcluster_1 -po softcluster_2 -po softcluster_3 -po softcluster_4 -po softcluster_5 -po softcluster_6 -po softcluster_7 -po softcluster_8 -po softcluster_9 -po softcluster_10 -po softcluster_11 -po softcluster_12 -po softcluster_13
 #done
-#
+
 ## multiple tasks, single outcome
 #for model in "${models[@]}"; do
 #  for outcome in "${outcomes[@]}"; do
