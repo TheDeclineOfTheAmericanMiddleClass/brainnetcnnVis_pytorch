@@ -228,8 +228,11 @@ if 'HCP_alltasks_268' not in uncond_args.chosen_dir and 'NA' not in uncond_args.
 if uncond_args.model == 'BNCNN' and 'Johann_mega_graph' in uncond_args.chosen_dir:
     parser.exit('BNCNN cannot train on non-matrix data (e.g. Johann_mega_graph)')
 
-if uncond_args.confound_names != 'X0Y0' and uncond_args.confound_names is None:
+if uncond_args.deconfound_flavor != 'X0Y0' and uncond_args.confound_names is None:
     parser.exit('If deconfounding is desired, please choose at least one confound')
+
+if uncond_args.cv_folds < 2:
+    parser.exit('Cross validation folds must be >= 2')
 
 args = parser.parse_args()  # parsing unconditional and conditional args
 pargs = vars(args)  # dict of passed args
@@ -279,9 +282,9 @@ elif args.model == ['SVM']:
 
     print('loading model data...')
     pargs.update(load_model_data.main(pargs))
-    print('training SVM...')
+    print('training shallow network...')
     train_shallow_networks.main(pargs)
-    print('\nSVM training done!\n')
+    print('\nshallow network training done!\n')
 
 elif args.model == ['Gerlach_cluster']:
     from preprocessing import read_data

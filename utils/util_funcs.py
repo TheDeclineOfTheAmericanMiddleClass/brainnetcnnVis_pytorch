@@ -3,6 +3,7 @@ from __future__ import print_function
 import glob
 import inspect
 import pickle
+import random
 import re
 import sys
 from os import listdir
@@ -16,6 +17,8 @@ import pandas as pd
 from numpy import linalg as la
 from scipy import io
 from scipy.linalg import logm, inv
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import MaxAbsScaler
 
 
 # read subjects' demographic data
@@ -846,3 +849,110 @@ def plot_grad_flow(named_parameters):
     plt.ylim(bottom=-0.001, top=0.02)  # zoom in on the lower gradient regions
     plt.xlabel("Layers")
     plt.ylabel("average gradient")
+
+
+def create_cv_folds(data, n_folds=6, separate_families=False, shuffle=True, seed=1234):
+    """Calculates folds for cv-fold training of shallow models.
+
+    :param shuffle: shuffles order of families (v.s. loading from largest to smallest)
+                Note: shuffling increases likelhood of folds of unequal sizes
+    :param data: (xarray) X training data, with subject numbers as coords
+    :param n_folds: number of folds in which to partition the data
+    :param separate_families: (bool) whether to keep families in the same fold
+    :return: subjects in each fold, their indices in the data
+    """
+    subnums = data.subject.values  # TODO: change to just train & test subjects
+
+    if not separate_families:
+        max_fold_size = np.ceil(len(subnums) / n_folds)
+        min_fold_size = np.floor(len(subnums) / n_folds)
+        remaining = np.remainder(len(subnums), n_folds)  # subjects left over after even divide
+
+        families = data.groupby('Family_ID')._group_indices  # family members chunked in lists
+        families.sort(key=len, reverse=True)  # sorting by number of family members, most first
+
+        if shuffle:
+            random.shuffle(families)  # shuffling order
+
+        inds_in_fold = [[] for _ in range(n_folds)]
+        counter = 0
+
+        while counter < len(families):
+            try:
+                for i in range(n_folds):
+                    added_inds = families[counter]
+
+                    # pass over max full folds
+                    if (len(inds_in_fold[i]) == max_fold_size):
+                        continue
+
+                    # pass over min full folds if nothing remains
+                    elif (len(inds_in_fold[i]) >= min_fold_size) and (remaining == 0):
+                        continue
+
+                    # add to folds until they are full
+                    else:
+                        inds_in_fold[i].extend(added_inds)
+                        counter += 1
+
+                        # if a fold exceeds min full, detract the excess from remaining
+                        if len(inds_in_fold[i]) > min_fold_size:
+                            remaining -= len(inds_in_fold[i]) - min_fold_size
+
+                            # if the excess is too much, fuck it
+                            if remaining < 0:
+                                remaining = 0
+
+            except IndexError:
+                break
+
+        inds_in_fold = np.array(inds_in_fold)
+
+    else:  # tear families apart
+        kf = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        inds_in_fold = np.array(list(kf.split(subnums)))[:, 1]  # n_folds x (test)
+
+    subs_in_fold = np.array([subnums[x] for x in inds_in_fold])
+
+    return subs_in_fold, inds_in_fold
+
+
+def create_shallow_array(X, Y, chosen_Xdatavars, X_is_matrix, subs, inds, multiclass, train_inds=None,
+                         scale_features=True):
+    """ Creates unraveled 1D data arrays to use with shallow network training, testing, validation.
+
+    :param multiclass: (bool) decides to one-hot encode Y
+    :param X: (xarray) data from which to create training arrays
+    :param Y: (array) target outcome for prediction
+    :param X_is_matrix: (bool) whether X data is in matrix form
+    :param chosen_Xdatavars: (array) datasets in X upon which to create training arrays
+    :param subs: subject numbers in the desired shallow array
+    :param inds: subject indices in the desired shallow array
+    :param train_inds: indices of train set, used for scaling
+    :param scale_features: (bool) whether to scale the features by the max abs train value
+    :return: unraveled X matrix (subject x features), Y array (subjects)
+    """
+    # should it return onl the subjects for training? or just the
+
+    # creating data arrays to be trained on
+    if X_is_matrix:
+        shallow_X = np.concatenate([X[var].sel(dict(subject=subs)).values[:,
+                                    np.triu_indices_from(X[var][0], k=1)[0],
+                                    np.triu_indices_from(X[var][0], k=1)[1]]
+                                    for var in chosen_Xdatavars], axis=1)
+
+        # TODO: implement scale features for matrix data? Maybe not necessary because correlation bounded by [0,1]
+
+    else:  # i.e. Johann_mega_graph
+        shallow_X = X[chosen_Xdatavars[0]][inds].values
+
+        if scale_features:
+            scaler = MaxAbsScaler().fit(X[chosen_Xdatavars[0]][train_inds].values)
+            shallow_X = scaler.transform(shallow_X)
+
+    shallow_Y = Y[inds]  # assumes Y ordered the same as subs
+
+    if multiclass:  # transforming one_hot encoded Y-data back into multiclass
+        shallow_Y = onehot_to_multiclass(shallow_Y)
+
+    return shallow_X, shallow_Y

@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import numpy as np
 import torch
@@ -17,6 +18,11 @@ def main(args):
     net = bunch.net
     test = bunch.test
     train = bunch.train
+
+    # creating filename to save data
+    rundate = datetime.datetime.now().strftime("%m-%d-%Y-%H-%M")
+    model_preamble = f"BNCNN_{bunch.architecture}_{bunch.po_str}_{bunch.cXdv_str}" \
+                     f"_{bunch.transformations}_{bunch.deconfound_flavor}{bunch.scl}_{bunch.early_str}_" + rundate
 
     # setting up xarray to hold performance metrics
     sets = ['train', 'test']
@@ -108,7 +114,21 @@ def main(args):
                  trainpears_1[0],
                  trainpears_1[1]])[:, None]
 
-        # Checking every ep_int epochs. If there is no improvement on performance metrics, stop training early
+        # save model parameters iteratively, for each best epoch during training
+        if bunch.multiclass:
+            best_epoch_yet = bool(epoch == performance.loc[dict(set='test', metrics='accuracy')].argmax().values)
+        elif bunch.multi_outcome:  # best epoch has lowest mean error
+            best_epoch_yet = bool(
+                epoch == performance.loc[dict(set='test', metrics='MAE')].mean(axis=-1).argmin().values)
+        else:
+            best_epoch_yet = bool(epoch == performance.loc[dict(set='test', metrics='MAE')].argmin().values)
+
+        # TODO: ensure saving iteratively not too memory consuming
+        if best_epoch_yet:
+            best_test_epoch = epoch
+            torch.save(net, os.path.join('models', model_preamble + f'_epoch-{epoch}' + '_model.pt'))
+
+        # Check every ep_int epochs. If there is no improvement on performance metrics, stop training early
         if bunch.early:
             if epoch > bunch.min_ep:
                 if bunch.multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
@@ -141,38 +161,28 @@ def main(args):
                     if stagnant_mae or stagnant_r:
                         break
 
-    # # creating filename to save data
-    rundate = datetime.datetime.now().strftime("%m-%d-%Y-%H-%M")
-    model_preamble = f"BNCNN_{bunch.architecture}_{bunch.po_str}_{bunch.cXdv_str}" \
-                     f"_{bunch.transformations}_{bunch.deconfound_flavor}{bunch.scl}_{bunch.early_str}_" + rundate
-
-    # Save trained model parameters
-    filename_model = model_preamble + '_model.pt'
-    torch.save(net, f'models/{filename_model}')
-
     # Save trained model performance
     performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                                            predicted_outcome=bunch.po_str, transformations=bunch.transformations,
                                            deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
                                            multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome,
-                                           confound_names=bunch.confound_names)
+                                           confound_names=bunch.confound_names, best_test_epoch=best_test_epoch)
     if bunch.early:
         performance = performance.assign_attrs(stop_int=epoch - bunch.ep_int)  # adding early stop epoch to xarray
 
     filename_performance = model_preamble + '_performance.nc'
     performance.name = filename_performance  # updating xarray name internally
 
-    # determining best test results
-    if bunch.multiclass:
-        best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
-    elif bunch.multi_outcome:  # best epoch has lowest mean error
-        best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].mean(
-            axis=-1).argmin().values
-    else:
-        best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
-
-    performance = performance.assign_attrs(
-        best_test_epoch=best_test_epoch)  # adding best test epoch
+    # # determining best test results
+    # if bunch.multiclass:
+    #     best_test_epoch = performance.loc[dict(set='test', metrics='accuracy')].argmax().values
+    # elif bunch.multi_outcome:  # best epoch has lowest mean error
+    #     best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].mean(
+    #         axis=-1).argmin().values
+    # else:
+    #     best_test_epoch = performance.loc[dict(set='test', metrics='MAE')].argmin().values
+    #
+    # performance = performance.assign_attrs(best_test_epoch=best_test_epoch)  # adding best test epoch
 
     performance.to_netcdf(f'performance/BNCNN/{filename_performance}')  # saving performance
 
