@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import numpy as np
 import torch
@@ -15,65 +16,78 @@ def main(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     use_cuda = torch.cuda.is_available()
 
-    if bunch.multi_input:  # create xarray to hold all matrices
-        cdata = []
+    read_in_anew = False  # bool determines whether data will be read in anew or loaded
 
-        for i, cd in enumerate(bunch.chosen_dir):  # for all data_directories
+    cdata = []
 
-            if bunch.chosen_dir != ['HCP_alltasks_268']:  # set chosen_tasks if multiple are available in the directory
-                chosen_tasks_in_dir = ['NA']
+    for i, cd in enumerate(bunch.chosen_dir):  # for all data_directories
 
-            elif bunch.chosen_dir == ['HCP_alltasks_268']:
-                chosen_tasks_in_dir = bunch.chosen_tasks
-
-                # TODO: implement intelligent reading in of HC900_FSL_GM data and AFTER other data_directories read in, their concatenation
-                if os.path.isfile('/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc'):
-                    cdata = xr.load_dataset(
-                        '/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
-                    tasknames = ['_'.join((cd, taskname)) for taskname in
-                                 chosen_tasks_in_dir]  # creating keys for chosen tasks
-                    # cdata = cdata[tasknames]
-                    break
-
-            for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
-                try:
-                    partial, subnums = read_mat_data(data_directories[cd], toi=HCP268_tasks[taskname])
-                except KeyError:
-                    raise KeyError(f'\'{taskname}\' is an invalid task name for data {cd}...')
-
-                nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
-
-                # creating dictionary of dims for xarray
-                partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes],
-                                       dims=['subject', 'dim1', 'dim2'], name='_'.join((cd, taskname)))
-                cdata.append(partial)
-
-        if bunch.chosen_dir == ['HCP_alltasks_268']:
-            if os.path.isfile('/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc'):
-                subnums = cdata.subject.values
-
-        else:
-            cdata = xr.align(*cdata, join='inner')  # 'inner' takes intersection of cdata objects
-            cdata = xr.merge(cdata, compat='override', join='exact')  # 'exact' merges on all dimensions exactly
-            cdata = cdata.sortby(['subject', 'dim1', 'dim2'], ascending=True)
-
-    elif not bunch.multi_input:
-
-        if bunch.chosen_dir != ['HCP_alltasks_268']:  # setting chosen_tasks if multiple are available in the directory
+        if bunch.chosen_dir != ['HCP_alltasks_268']:  # set chosen_tasks if multiple are available in the directory
             chosen_tasks_in_dir = ['NA']
 
+        # TODO: concatenation of HC900_FSL_GM and other data
         elif bunch.chosen_dir == ['HCP_alltasks_268']:
             chosen_tasks_in_dir = bunch.chosen_tasks
 
-        cdata, subnums = read_mat_data(data_directories[bunch.chosen_dir[0]], toi=HCP268_tasks[chosen_tasks_in_dir[0]])
-        nodes = [f'node {x}' for x in np.arange(cdata.shape[-1])]
+            # load in, if all tasks are already saved. if not reads all in anew
+            if os.path.isfile('/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc'):
+                cdata = xr.load_dataset(
+                    '/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
+                tasknames = bunch.chosen_Xdatavars.copy()  # keys for chosen tasks
 
-        try:
-            cdata = xr.DataArray(cdata, coords=[subnums, nodes, nodes], dims=['subject', 'dim1', 'dim2'],
-                                 name=bunch.chosen_Xdatavars[0]).to_dataset()
-        except ValueError:
-            cdata = xr.DataArray(cdata, coords=[subnums, nodes], dims=['subject', 'dim1'],
-                                 name=bunch.chosen_dir[0]).to_dataset()
+                # only task-relevant dec, pd, and tan matrices read in
+                if bunch.deconfound_flavor in ['X1Y0', 'X1Y1']:
+                    print('checking for saved deconfounded matrices')
+                    dec_vars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in tasknames]
+                    tasknames.extend(dec_vars)
+
+                if bunch.transformations in ['positive definite', 'tangent']:
+                    print('checking for saved positive matrices')
+                    pd_vars = [f'pd_{datavar}' for datavar in dec_vars]  # name for PD matrices
+                    tasknames.extend(pd_vars)
+
+                if bunch.transformations in ['tangent']:
+                    print('checking for saved tangent matrices')
+                    tan_vars = [f'tan_{datavar}' for datavar in dec_vars]  # name for tangent matrices
+                    tasknames.extend(tan_vars)
+
+                try:
+                    cdata = cdata[tasknames]  # checking if all tasks there
+                    break
+                except KeyError:
+                    cdata = []
+                    read_in_anew = True
+                    pass
+
+        for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
+
+            read_in_anew = True
+
+            try:
+                print(f'reading in {taskname} (if NA, this can be ignored)...')
+                partial, subnums = read_mat_data(data_directories[cd], toi=HCP268_tasks[taskname])
+            except KeyError:
+                raise KeyError(f'\'{taskname}\' is an invalid task name for data {cd}...')
+
+            nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
+
+            try:  # TODO delete try except if not works
+                partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes],
+                                       dims=['subject', 'dim1', 'dim2'], name='_'.join((cd, taskname)))
+            except ValueError:
+                partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes], dims=['subject', 'dim1'],
+                                       name=bunch.chosen_dir[0])
+            cdata.append(partial)
+
+    if read_in_anew:
+        cdata = xr.align(*cdata, join='inner')  # 'inner' takes intersection of cdata objects
+        cdata = xr.merge(cdata, compat='override', join='exact')  # 'exact' merges on all dimensions exactly
+
+    # TODO: note 'node' sorting here isn't 1 - 300, but rather 0, 1, 10, etc.
+    try:
+        cdata = cdata.sortby(['subject', 'dim1', 'dim2'], ascending=True)
+    except KeyError:
+        cdata = cdata.sortby(['subject', 'dim1'], ascending=True)
 
     print('Finished reading in matrix data...reading HCP restricted and behavioral data...')
 
@@ -89,11 +103,8 @@ def main(args):
 
     # add Gerlach soft-clustering scores to cdata
     if bunch.chosen_dir == ['HCP_alltasks_268']:
-        import pickle
-
-        gmm_cluster = pickle.load(
-            open(f'personality-types/data_filter/gmm_cluster13_IPIP5.pkl',
-                 "rb"))  # read in file # TODO: update for IMAGEN, change hard coding
+        gmm_cluster = pickle.load(open(f'personality-types/data_filter/gmm_cluster13_IPIP5.pkl', "rb"))  # read in file
+        # TODO: change hard coding, update if reading in IMAGEN data
         # open(f'personality-types/data_filter/{bunch.dataset_to_cluster}_gmm_cluster13_IPIP{bunch.Q}.pkl', "rb"))
 
         cluster_labels = gmm_cluster['labels'].T
@@ -106,7 +117,7 @@ def main(args):
         for i, x in enumerate(cluster_labels):
             cdata[f'softcluster_{i + 1}'] = xr.DataArray(x, dims='subject').assign_attrs(
                 dict(enrichment=gmm_cluster['enrichment'][i], pval=gmm_cluster['pval'][i],
-                     non_spurious=ns_cluster_args[i]))
+                     non_spurious=int(ns_cluster_args[i])))
 
     subnums = cdata.subject.values
 
@@ -114,7 +125,8 @@ def main(args):
     if 'Johann_mega_graph' in bunch.chosen_Xdatavars and not bunch.edge_betweenness:
         cdata = cdata.drop_sel(dim1=[f'node {x}' for x in range(1586, len(cdata.dim1.values))])
 
-    # cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc') # Saving when necessary
+    if read_in_anew:  # saving when necessary
+        cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
     return dict(subnums=subnums, cdata=cdata, use_cuda=use_cuda, device=device)
 

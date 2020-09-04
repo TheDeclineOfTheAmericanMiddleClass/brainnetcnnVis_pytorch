@@ -32,7 +32,7 @@ def main(args):
     performance = xr.DataArray(alloc_data, coords=[np.arange(bunch.nbepochs), sets, metrics, bunch.predicted_outcome],
                                dims=['epoch', 'set', 'metrics', 'outcome'])
 
-    print('Using data: ', bunch.chosen_Xdatavars, '\n Predicting:', ", ".join(bunch.predicted_outcome))
+    print('Using data: ', bunch.chosen_Xdatavars, '\n Predicting:', ", ".join(bunch.predicted_outcome), '\n')
 
     # initial prediction from starting weights
     print("Init Network")

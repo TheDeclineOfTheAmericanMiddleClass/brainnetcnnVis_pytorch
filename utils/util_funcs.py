@@ -73,6 +73,12 @@ def read_HCP900_data():
 
 # read connectivity matrices from .txt, .npy, .mat files
 def read_mat_data(dataDir, toi=[]):
+    """Reads in matrix data from a data directory.
+
+    :param dataDir: (filepath) data directory
+    :param toi: (list) tasks of interest
+    :return:
+    """
     data = []  # Allocating list for connectivity matrices
     subnums = []  # subject IDs
 
@@ -861,7 +867,8 @@ def create_cv_folds(data, n_folds=6, separate_families=False, shuffle=True, seed
     :param separate_families: (bool) whether to keep families in the same fold
     :return: subjects in each fold, their indices in the data
     """
-    subnums = data.subject.values  # TODO: change to just train & test subjects
+
+    subnums = data.subject.values
 
     if not separate_families:
         max_fold_size = np.ceil(len(subnums) / n_folds)
