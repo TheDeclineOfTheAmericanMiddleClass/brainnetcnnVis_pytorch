@@ -66,6 +66,7 @@ def main(args):
     if bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
 
         print(f'Checking if {len(bunch.chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
+
         for i, datavar in enumerate(bunch.chosen_Xdatavars):
 
             dec_Xvar = f'dec_{"_".join(bunch.confound_names)}_{datavar}'  # name for positive definite transformed mats
@@ -94,7 +95,7 @@ def main(args):
             # if deconfound_flavor == 'X1Y1':  # load deconfounded Y data
             #     Y = Y_corr
 
-            print('...deconfounding complete.\n')
+            print('...deconfounding complete.')
             cdata[dec_Xvar] = xr.DataArray(X_corr,
                                            coords=dict(zip(list(cdata[dec_Xvar].dims),
                                                            [cdata[dec_Xvar][x].values for x in
@@ -103,10 +104,10 @@ def main(args):
             # cdata = cdata.assign({dec_Yvar: Y_corr})
             del X_corr
 
-        # saving deconfounded matrices in HCP_alltasks_268, ONLY if all were deconfounded
-        if bunch.chosen_dir == ['HCP_alltasks_268'] and bunch.chosen_tasks == list(HCP268_tasks.keys())[:-1]:
-            print('saving deconfound matrices to xarray...')
-            cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
+            # saving deconfounded matrices in HCP_alltasks_268, ONLY if all were deconfounded
+            if bunch.chosen_dir == ['HCP_alltasks_268'] and bunch.chosen_tasks == list(HCP268_tasks.keys())[:-1]:
+                print(f'saving {dec_Xvar} matrices to xarray...\n')
+                cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
         # updating chosen datavars
         chosen_Xdatavars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in bunch.chosen_Xdatavars]
@@ -123,6 +124,7 @@ def main(args):
         y_weights_dict = dict(zip(range(len(y_weights)), y_weights))
 
     if bunch.data_are_matrices:
+
         ###################################################################
         # # Projecting matrices into positive definite
         ###################################################################
@@ -139,8 +141,12 @@ def main(args):
                     num_notPD, which = areNotPD(cdata[datavar].values)  # Test all matrices for positive definiteness
                     print(f'\nThere are {num_notPD} non-PD matrices in {datavar}...\n')
 
-                    print('Transforming non-PD matrices to nearest PD neighbor ...')
                     cdata = cdata.assign({pd_var: cdata[datavar]})
+
+                    if int(num_notPD) == 0:
+                        continue
+
+                    print('Transforming non-PD matrices to nearest PD neighbor ...')
                     X_pd = PD_transform(cdata[pd_var].values[which])
                     cdata[pd_var][which] = xr.DataArray(X_pd,
                                                         coords=dict(zip(list(cdata[pd_var].dims),
@@ -168,10 +174,10 @@ def main(args):
                     print(f'Tangent {datavar} already saved. Skipping tangent projection.\n')
                     continue
 
-                print('Transforming all matrices into tangent space ...')
+                print(f'Transforming all {datavar} matrices into tangent space ...')
                 cdata = cdata.assign({tan_var: cdata[datavar]})
+                # determine tangent transformation from trainset and project all sets' matrices
                 X_tan = tangent_transform(refmats=cdata[datavar].loc[dict(subject=partition_subs["train"])],
-                                          # tangent only from trainset
                                           projectmats=cdata[datavar].values,
                                           ref=bunch.tan_mean)
 
