@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 
@@ -27,9 +28,9 @@ def main(args):
     # setting up xarray to hold performance metrics
     sets = ['train', 'test']
     metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
-    alloc_data = np.zeros((bunch.nbepochs, len(sets), len(metrics), bunch.num_outcome))
+    alloc_data = np.zeros((bunch.n_epochs, len(sets), len(metrics), bunch.num_outcome))
     alloc_data[:] = np.nan
-    performance = xr.DataArray(alloc_data, coords=[np.arange(bunch.nbepochs), sets, metrics, bunch.predicted_outcome],
+    performance = xr.DataArray(alloc_data, coords=[np.arange(bunch.n_epochs), sets, metrics, bunch.predicted_outcome],
                                dims=['epoch', 'set', 'metrics', 'outcome'])
 
     print('Using data: ', bunch.chosen_Xdatavars, '\n Predicting:', ", ".join(bunch.predicted_outcome), '\n')
@@ -58,7 +59,7 @@ def main(args):
         print("Test Set : pearson R for Engagement : %0.02f, p = %0.4f" % (pears_1[0], pears_1[1]))
 
     # # train model
-    for epoch in range(bunch.nbepochs):
+    for epoch in range(bunch.n_epochs):
 
         trainp, trainy, loss_train = train()
         preds, y_true, loss_test = test()
@@ -123,10 +124,9 @@ def main(args):
         else:
             best_epoch_yet = bool(epoch == performance.loc[dict(set='test', metrics='MAE')].argmin().values)
 
-        # TODO: ensure saving iteratively not too memory consuming
-        if best_epoch_yet:
+        if best_epoch_yet:  # making a deep copy iteratively
             best_test_epoch = epoch
-            torch.save(net, os.path.join('models', model_preamble + f'_epoch-{epoch}' + '_model.pt'))
+            best_net = copy.deepcopy(net).to('cpu')  # freeing up GPU space
 
         # Check every ep_int epochs. If there is no improvement on performance metrics, stop training early
         if bunch.early:
@@ -161,12 +161,17 @@ def main(args):
                     if stagnant_mae or stagnant_r:
                         break
 
+    # saving model weights with best test-performance
+    torch.save(best_net, os.path.join('models', model_preamble + f'_epoch-{best_test_epoch}' + '_model.pt'))
+
     # Save trained model performance
     performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                                            predicted_outcome=bunch.po_str, transformations=bunch.transformations,
                                            deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
                                            multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome,
-                                           confound_names=bunch.confound_names, best_test_epoch=best_test_epoch)
+                                           confound_names='_'.join(bunch.confound_names),
+                                           best_test_epoch=best_test_epoch)
+
     if bunch.early:
         performance = performance.assign_attrs(stop_int=epoch - bunch.ep_int)  # adding early stop epoch to xarray
 
@@ -190,7 +195,7 @@ def main(args):
     print(f'\nBest test performance'
           f'\ndataset: {bunch.cXdv_str}'
           f'\noutcome: {bunch.po_str}'
-          f'\nepoch: {best_test_epoch}'
+          f'\nbest epoch: {best_test_epoch}'
           f"\nMAE: {performance.loc[dict(set='test', metrics='MAE', epoch=best_test_epoch)].values.squeeze()}"
           f"\npearson R: {performance.loc[dict(set='test', metrics='pearsonR', epoch=best_test_epoch)].values.squeeze()}"
           f"\npearson p-value: {performance.loc[dict(set='test', metrics='p_value', epoch=best_test_epoch)].values.squeeze()}"
