@@ -1,6 +1,10 @@
 import argparse
+import gc
 
 from utils.var_names import HCP268_tasks, data_directories, predict_choices
+
+# cleaning up memory
+gc.collect()
 
 # adding name to parser
 parser = argparse.ArgumentParser(description="train multiple personality-predicting models on HCP data")
@@ -50,7 +54,7 @@ hyper.add_argument('--max_norm', default=1.5, type=float,
 
 # params for epochs to train over
 epochs = parser.add_argument_group('epochs', 'training iterations params')
-epochs.add_argument('--nbepochs', default=300, type=int, help='max epochs to train BNCNN over', nargs='?')
+epochs.add_argument('--n_epochs', default=300, type=int, help='max epochs to train BNCNN over', nargs='?')
 epochs.add_argument('-ea', '--early', action='store_true', help='early stopping')
 epochs.add_argument('--cv_folds', default=5, type=int, help='cross validation folds for SVM', nargs='?')
 epochs.add_argument('--ep_int', type=int, default=5, help='if no improvement after {ep_int} epochs, stop early',
@@ -63,126 +67,38 @@ clustering = parser.add_argument_group('clustering', 'Gerlach personality cluste
 clustering.add_argument('--Q', default=5, type=int, help='number of feature used to fit clustering GMM', nargs='?')
 clustering.add_argument('--dataset_to_cluster', choices=['IMAGEN', 'HCP'], default='HCP',
                         help='the NEO-FFI dataset from generate clusters from', nargs='?')
-#
-# # # SETTING CONDITIONAL VARIABLES # TODO: fix this shit. Conditional argument are unrecognized by parser
-# uncond_args = parser.parse_args()  # parsing unconditional variables first
-# logic = parser.add_argument_group('pipeline_logic', 'necessary vars for pipeline logic')
-#
-# if uncond_args.model in [['BNCNN'], ['SVM']]:
-#     if uncond_args.transformations == 'tangent':
-#         transforms.add_argument('--tan_mean', choices=['euclidean', 'harmonic'], default='euclidean', nargs='?')
-#
-#     if uncond_args.early:
-#         epochs.add_argument('--ep_int', type=int, default=5, help='if no improvement after {ep_int} epochs, stop early',
-#                             nargs='?')
-#         epochs.add_argument('--min_ep', default=50, type=int, help='mininmum epochs to train before early stopping',
-#                             nargs='?')
-#         # note: f'{}' string formatting doesn't work with every terminal. ?must be python 3 compatible
-#         epochs.add_argument('early_str', action='store_const', const=f'es{epochs.ep_int}')
-#     else:
-#         epochs.add_argument('early_str', action='store_const', const='')
-#
-#     if uncond_args.deconfound_flavor != 'X0Y0':
-#         transforms.add_argument('--confound_names',
-#                                 choices=['Weight', 'Height', 'Handedness', 'Age_in_Yrs', 'Gender','PSQI_Score', None],
-#                                 required=True, type=str, help='confounds to regress out of outcome', nargs='+')
-#
-#     if uncond_args.chosen_dir == 'Johann_mega_graph':
-#         in_out.add_argument("-eb", "--edge_betweenness", action='store_true',
-#                             help="if reading in data_directories['Johann_mega_graph'], include edgebetweeness vector")
-#         logic.add_argument('data_are_matrices', action='store_const', const=False, help='bool for transformations')
-#     else:
-#         logic.add_argument('data_are_matrices', action='store_const', const=True, help='bool for transformations')
-#
-#     if uncond_args.scale_confounds:
-#         transforms.add_argument('scl', action='store_const', const='scaled')
-#     else:
-#         transforms.add_argument('scl', action='store_const', const='')
-#
-#     if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
-#         in_out.add_argument('po_str', action='store_const', const='softcluster_all')
-#     elif all(
-#             [x in uncond_args.predicted_outcome for x in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N']]):
-#         print('Using all NEOFAC dimensions...')
-#         in_out.add_argument('po_str', action='store_const', const='NEOFAC_all')
-#     else:
-#         in_out.add_argument('po_str', action='store_const', const='_'.join(uncond_args.predicted_outcome))
-#
-# # logic for accurate calculation of multi_input
-# try:
-#     logic.add_argument('num_input', action='store_const',
-#                        const=len(uncond_args.chosen_dir) - 1 + len(uncond_args.chosen_tasks),
-#                        help='number of input matrices to train on')
-# except TypeError:
-#     parser.exit('Chosen tasks (-ct) and/or chosen directory (-cd) must not be None.')
-#
-# if (len(uncond_args.chosen_dir) - 1 + len(uncond_args.chosen_tasks)) == 1:
-#     logic.add_argument('multi_input', action='store_const', const=False, help='bool for multi input training')
-# else:
-#     logic.add_argument('multi_input', action='store_const', const=True, help='bool for multi input training')
-#
-#
-# # names for xarray data variables
-# chosen_Xdatavars = uncond_args.chosen_dir.copy()
-# if 'HCP_alltasks_268' in chosen_Xdatavars:
-#     chosen_Xdatavars.remove('HCP_alltasks_268')
-#     for task in uncond_args.chosen_tasks:
-#         datavar = f'HCP_alltasks_268_{task}'
-#         chosen_Xdatavars.append(datavar)
-# logic.add_argument('chosen_Xdatavars', action='store_const', const=chosen_Xdatavars,
-#                    help='names for xarray data variables')
-#
-# # # 2nd round of parsing, to set variable conditional on the conditional variables
-# cond_args = parser.parse_args()
-#
-# # If all tasks, use simplified name HCP_alltasks_268
-# if all([x in cond_args.chosen_tasks for x in list(HCP268_tasks.keys())[:-1]]):
-#     print('Using all HCP 268 tasks...')
-#     in_out.add_argument('cXdv_str', action='store_const', const='HCP_alltasks_268_all')
-# else:
-#     in_out.add_argument('cXdv_str', action='store_const', const='_'.join(cond_args.chosen_Xdatavars))
-#
-# # exit logic for mutually exclusive args
-# if 'HCP_alltasks_268' in uncond_args.chosen_dir and 'NA' in uncond_args.chosen_tasks:
-#     parser.exit('Please choose at least non-NA task(s) for HCP_alltasks_268')
-#
-# if 'HCP_alltasks_268' not in uncond_args.chosen_dir and 'NA' not in uncond_args.chosen_tasks:
-#     parser.exit('Please set variable chosen_tasks to [\'NA\'] if chosen_dir != HCP_alltasks_268.')
-#
-# if uncond_args.model == 'BNCNN' and 'Johann_mega_graph' in uncond_args.chosen_dir:
-#     parser.exit('BNCNN cannot train on non-matrix data (e.g. Johann_mega_graph)')
 
 # # SETTING CONDITIONAL ARGUMENTS # TODO: fix this shit. Conditional argument are unrecognized by parser
 uncond_args = parser.parse_args()  # parsing unconditional variables first
 logic = parser.add_argument_group('pipeline_logic', 'necessary vars for pipeline logic')
-# automatically set arguments
-if uncond_args.model in [['BNCNN'], ['SVM']]:
-    if uncond_args.early:
-        # note: f'{}' string formatting doesn't work with every terminal. ?must be python 3 compatible
-        epochs.add_argument('early_str', action='store_const', const=f'es{epochs.ep_int}')
-    else:
-        epochs.add_argument('early_str', action='store_const', const='')
 
-    if uncond_args.chosen_dir == 'Johann_mega_graph':
-        in_out.add_argument("-eb", "--edge_betweenness", action='store_true',
-                            help="if reading in data_directories['Johann_mega_graph'], include edgebetweeness vector")
-        logic.add_argument('data_are_matrices', action='store_const', const=False, help='bool for transformations')
-    else:
-        logic.add_argument('data_are_matrices', action='store_const', const=True, help='bool for transformations')
+# if uncond_args.model in [['BNCNN'], ['SVM']]:
+if uncond_args.early:
+    # note: f'{}' string formatting doesn't work with every terminal. ?must be python 3 compatible
+    epochs.add_argument('early_str', action='store_const', const=f'es{epochs.ep_int}')
+else:
+    epochs.add_argument('early_str', action='store_const', const='')
 
-    if uncond_args.scale_confounds:
-        transforms.add_argument('scl', action='store_const', const='scaled')
-    else:
-        transforms.add_argument('scl', action='store_const', const='')
+if uncond_args.chosen_dir == ['Johann_mega_graph']:
+    in_out.add_argument("-eb", "--edge_betweenness", action='store_true',
+                        help="if reading in data_directories['Johann_mega_graph'], include edge betweeness vector")
+    logic.add_argument('data_are_matrices', action='store_const', const=False, help='bool for transformations')
+else:
+    logic.add_argument('data_are_matrices', action='store_const', const=True, help='bool for transformations')
 
-    if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
-        in_out.add_argument('po_str', action='store_const', const='softcluster_all')
-    elif all(
-            [x in uncond_args.predicted_outcome for x in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N']]):
-        print('Using all NEOFAC dimensions...')
-        in_out.add_argument('po_str', action='store_const', const='NEOFAC_all')
-    else:
-        in_out.add_argument('po_str', action='store_const', const='_'.join(uncond_args.predicted_outcome))
+if uncond_args.scale_confounds:
+    transforms.add_argument('scl', action='store_const', const='scaled')
+else:
+    transforms.add_argument('scl', action='store_const', const='')
+
+if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
+    in_out.add_argument('po_str', action='store_const', const='softcluster_all')
+elif all(
+        [x in uncond_args.predicted_outcome for x in ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N']]):
+    print('Using all NEOFAC dimensions...')
+    in_out.add_argument('po_str', action='store_const', const='NEOFAC_all')
+else:
+    in_out.add_argument('po_str', action='store_const', const='_'.join(uncond_args.predicted_outcome))
 
 # logic for accurate calculation of multi_input
 try:
@@ -225,7 +141,7 @@ if 'HCP_alltasks_268' in uncond_args.chosen_dir and 'NA' in uncond_args.chosen_t
 if 'HCP_alltasks_268' not in uncond_args.chosen_dir and 'NA' not in uncond_args.chosen_tasks:
     parser.exit('Please set variable chosen_tasks to [\'NA\'] if chosen_dir != HCP_alltasks_268.')
 
-if uncond_args.model == 'BNCNN' and 'Johann_mega_graph' in uncond_args.chosen_dir:
+if 'BNCNN' in uncond_args.model and 'Johann_mega_graph' in uncond_args.chosen_dir:
     parser.exit('BNCNN cannot train on non-matrix data (e.g. Johann_mega_graph)')
 
 if uncond_args.deconfound_flavor != 'X0Y0' and uncond_args.confound_names is None:
@@ -233,6 +149,9 @@ if uncond_args.deconfound_flavor != 'X0Y0' and uncond_args.confound_names is Non
 
 if uncond_args.cv_folds < 2:
     parser.exit('Cross validation folds must be >= 2')
+
+if 'SVM' in uncond_args.model and len(uncond_args.predicted_outcome) > 1:
+    parser.exit('SVM cannot handle multioutcome problems.')
 
 args = parser.parse_args()  # parsing unconditional and conditional args
 pargs = vars(args)  # dict of passed args
@@ -271,7 +190,7 @@ if args.model == ['BNCNN']:
         from display_results import plot_model_results
         plot_model_results.main(args)
 
-elif args.model == ['SVM']:
+elif any(shallow_model in args.model for shallow_model in ['SVM', 'FC90', 'ElasticNet']):
 
     from preprocessing import read_data
 

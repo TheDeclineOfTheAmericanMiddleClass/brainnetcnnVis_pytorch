@@ -25,7 +25,7 @@ def main(args):
         if bunch.chosen_dir != ['HCP_alltasks_268']:  # set chosen_tasks if multiple are available in the directory
             chosen_tasks_in_dir = ['NA']
 
-        # TODO: concatenation of HC900_FSL_GM and other data
+        # TODO: implement concatenation of multiple compatible directories
         elif bunch.chosen_dir == ['HCP_alltasks_268']:
             chosen_tasks_in_dir = bunch.chosen_tasks
 
@@ -37,41 +37,42 @@ def main(args):
 
                 # only task-relevant dec, pd, and tan matrices read in
                 if bunch.deconfound_flavor in ['X1Y0', 'X1Y1']:
-                    print('checking for saved deconfounded matrices')
+                    print('\nchecking for saved deconfounded matrices...')
                     dec_vars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in tasknames]
-                    tasknames.extend(dec_vars)
+                    avail_dec_vars = [var for var in dec_vars if var in list(cdata.data_vars)]  # those available
+                    tasknames.extend(avail_dec_vars)
 
                 if bunch.transformations in ['positive definite', 'tangent']:
-                    print('checking for saved positive matrices')
+                    print('checking for saved positive matrices...')
                     pd_vars = [f'pd_{datavar}' for datavar in dec_vars]  # name for PD matrices
-                    tasknames.extend(pd_vars)
+                    avail_pd_vars = [var for var in pd_vars if var in list(cdata.data_vars)]  # those available
+                    tasknames.extend(avail_pd_vars)
 
                 if bunch.transformations in ['tangent']:
-                    print('checking for saved tangent matrices')
+                    print('checking for saved tangent matrices...\n')
                     tan_vars = [f'tan_{datavar}' for datavar in dec_vars]  # name for tangent matrices
-                    tasknames.extend(tan_vars)
+                    avail_tan_vars = [var for var in tan_vars if var in list(cdata.data_vars)]  # those available
+                    tasknames.extend(avail_tan_vars)
 
                 try:
-                    cdata = cdata[tasknames]  # checking if all tasks there
+                    cdata = cdata[tasknames]  # checking if all tasks there, and loading in only necessaries
                     break
                 except KeyError:
                     cdata = []
-                    read_in_anew = True
-                    pass
 
         for j, taskname in enumerate(chosen_tasks_in_dir):  # for each task in the directory, read in the matrix
 
             read_in_anew = True
 
             try:
-                print(f'reading in {taskname} (if NA, this can be ignored)...')
+                print(f'reading in task ({taskname}) from directory {bunch.chosen_dir}..')
                 partial, subnums = read_mat_data(data_directories[cd], toi=HCP268_tasks[taskname])
             except KeyError:
                 raise KeyError(f'\'{taskname}\' is an invalid task name for data {cd}...')
 
             nodes = [f'node {x}' for x in np.arange(partial.shape[-1])]
 
-            try:  # TODO delete try except if not works
+            try:
                 partial = xr.DataArray(partial.squeeze(), coords=[subnums, nodes, nodes],
                                        dims=['subject', 'dim1', 'dim2'], name='_'.join((cd, taskname)))
             except ValueError:
