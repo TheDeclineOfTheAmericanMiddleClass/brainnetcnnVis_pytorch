@@ -19,12 +19,13 @@ def main(args):
     bunch = Bunch(args)
     seed = 1234  # setting random seed
 
-    # TODO: note all functions dependent on bunch
+    # NOTE: all functions dependent on bunch
     def train_SVM(X_in, Y_in, scoring=None, sklearn_cv=False,
                   X_test=None, Y_test=None, results=None):
 
         if scoring is None:
             scoring = ['neg_mean_absolute_error', 'r2']
+
         print('Training SVM...')
 
         if bunch.multi_outcome:
@@ -66,15 +67,15 @@ def main(args):
 
         if scoring is None:
             scoring = ['neg_mean_absolute_error', 'r2']
+
         print('Training FC90Net...')
-        # kf = KFold(n_splits=10)
 
         if bunch.multi_outcome:
             fl = bunch.num_outcome
         elif bunch.multiclass:
             fl = bunch.num_classes
         else:
-            fl = 1  # TODO: see later that this works
+            fl = 1
 
         if bunch.multiclass:
             if bunch.predicted_outcome == ['Gender']:
@@ -143,6 +144,9 @@ def main(args):
 
     def train_ElasticNet(X_in, Y_in, scoring=None, sklearn_cv=False,
                          X_test=None, Y_test=None, results=None):
+
+        if scoring is None:
+            scoring = ['neg_mean_absolute_error', 'r2']
 
         print('Training ElasticNet...')
 
@@ -217,6 +221,7 @@ def main(args):
         cv_results = dict(zip(all_keys, [[] for _ in range(len(all_keys))]))
 
         # for each of n_folds model trainings, pick an N choose k combination at random
+        print('\npartitioning data into arrays to feed to model...')
         N = n_folds + 1  # total number of splits
         k = n_folds - 1  # number of folds in train set
         train_fold_combos = np.random.permutation([x for x in itertools.permutations(range(N), k)])[:n_folds]
@@ -226,7 +231,6 @@ def main(args):
         # run loop over training folds
         for i, train_folds in enumerate(train_fold_combos):
 
-            print('\npartitioning data into arrays to feed to model...')
             # discerning test and validation fold from remaining N choose (N-k) folds
             random.shuffle(binary)
             non_train_folds = list(set(range(N)) - set(train_folds))
@@ -264,14 +268,21 @@ def main(args):
 
             shallow_X_train = shallow_X_train.reshape(len(train_subs), -1)  # reshaping to (subjects x features)
             n_features = shallow_X_train.shape[-1]  # number of features
+
+            shallow_Y_train = shallow_Y_train.reshape(len(train_subs), -1)  # reshaping to (subjects x outcomes)
+            n_outcomes = shallow_Y_train.shape[-1]
+
             p_thresh = .001  # p-value threshold
 
             # determining significant features
             print('determining significant features...')
-            sig_features = np.zeros(n_features, dtype=bool)
+            sig_features = np.zeros((n_features, n_outcomes), dtype=bool)
             for feature in range(n_features):
-                _, p = pearsonr(shallow_X_train[:, feature], shallow_Y_train)
-                sig_features[feature] = bool(p < p_thresh)
+                for outcome in range(n_outcomes):
+                    _, p = pearsonr(shallow_X_train[:, feature], shallow_Y_train[:, outcome])
+                    sig_features[feature, outcome] = bool(p < p_thresh)
+            sig_features = np.sum(sig_features, axis=1)  # taking sig_features to be union over outcomes
+
             assert sum(sig_features) > 0, 'no significant features detected...'
 
             # TODO: add new loop here for more conservative feature choice (i.e. only sig_features over all n_folds)
@@ -280,9 +291,9 @@ def main(args):
 
             shallow_X_train = shallow_X_train[:, sig_features]  # pruning the X array
             shallow_X_test = shallow_X_test[:, sig_features]
+            shallow_Y_train = shallow_Y_train.squeeze()
 
-            cv_results = train_func(shallow_X_train, shallow_Y_train,
-                                    scoring=['neg_mean_absolute_error', 'r2'], sklearn_cv=sklearn_cv,
+            cv_results = train_func(shallow_X_train, shallow_Y_train, sklearn_cv=sklearn_cv,
                                     X_test=shallow_X_test, Y_test=shallow_Y_test, results=cv_results)
 
         return cv_results
@@ -307,12 +318,12 @@ def main(args):
         non_scoring_dict = {k: v for k, v in cv_results.items() if v and k not in scoring}
 
         metrics = list(scoring_dict.keys())  # performance metrics keys
-        results_data = np.array(list(scoring_dict.values())).squeeze()  # performance metrics data
+        results_data = np.array(list(scoring_dict.values()))  # .squeeze()  # performance metrics data
 
+        print('results data: ', results_data)
         performance = xr.DataArray(results_data, coords=[metrics, range(cv_folds)],
                                    dims=['metrics', 'cv_fold'], name=model_preamble)
 
-        # Save trained model performance #
         performance = performance.assign_attrs(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                                                outcome=bunch.po_str, transformations=bunch.transformations,
                                                deconfound_flavor=bunch.deconfound_flavor)
