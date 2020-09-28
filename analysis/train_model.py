@@ -288,10 +288,10 @@ def main(args):
           f'\ndataset: {bunch.chosen_Xdatavars}'
           f'\noutcome: {bunch.predicted_outcome}'
           f'\nbest test epoch(s): {list(best_test_epochs.values())}'
-          f"\nbest val MAE: {best_val_MAE}"
-          f"\nbest val pearson R: {best_val_R}"
-          f"\nbest val pearson p: {best_val_p}"
-          f"\nbest val accuracy: {best_val_acc}")
+          f"\nbest val MAE (mean across cv_folds): {best_val_MAE}"
+          f"\nbest val pearson R (mean across cv_folds): {best_val_R}"
+          f"\nbest val pearson p (mean across cv_folds): {best_val_p}"
+          f"\nbest val accuracy (mean across cv_folds): {best_val_acc}")
 
     return dict(performance=performance)
 
