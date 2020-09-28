@@ -176,7 +176,7 @@ def main(args):
 
         for batch_idx, (inputs, targets) in enumerate(testloader):
             if bunch.use_cuda:
-                if not bunch.multi_outcome and not bunch.multiclass:  # TODO: see if .to() works better than .cuda()
+                if not bunch.multi_outcome and not bunch.multiclass:
                     # print('unsqueezing target for vstack...')
                     inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
                         1)  # unsqueezing for vstack
@@ -203,8 +203,56 @@ def main(args):
             running_loss += loss.data.mean(0)  # only predicting 1 feature
 
             # print statistics
-            if batch_idx == len(valloader):  # print for final batch
-                print('Test loss: %.6f' % (running_loss / 5))
+            if batch_idx == len(testloader) - 1:  # print for final batch
+                print('\nTest loss: %.6f' % (running_loss / 5))
+                running_loss = 0.0
+
+        if not bunch.multi_outcome and not bunch.multiclass:
+            # print('y_true left well enough alone...')
+            return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
+        else:
+            # print('squeezing y_true...')
+            return np.vstack(preds), np.vstack(ytrue).squeeze(), running_loss / batch_idx
+
+    def val():
+        net.eval()
+        test_loss = 0
+        running_loss = 0.0
+
+        preds = []
+        ytrue = []
+
+        for batch_idx, (inputs, targets) in enumerate(valloader):
+            if bunch.use_cuda:
+                if not bunch.multi_outcome and not bunch.multiclass:
+                    # print('unsqueezing target for vstack...')
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
+                        1)  # unsqueezing for vstack
+                else:
+                    # print('target left alone...')
+                    inputs, targets = inputs.to(bunch.device), targets.to(bunch.device)
+
+            with torch.no_grad():
+                inputs, targets = Variable(inputs), Variable(targets)
+
+                outputs = net(inputs)
+                targets = targets.view(outputs.size())
+
+                if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                    loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
+                else:
+                    loss = criterion(input=outputs, target=targets)
+
+                test_loss += loss.data.mean(0)  # only predicting 1 feature
+
+                preds.append(outputs.data.cpu().numpy())
+                ytrue.append(targets.data.cpu().numpy())
+
+            running_loss += loss.data.mean(0)  # only predicting 1 feature
+
+            # print statistics
+            if batch_idx == len(valloader) - 1:  # print for final batch
+                print('Val loss: %.6f' % (running_loss / 5))
                 running_loss = 0.0
 
         if not bunch.multi_outcome and not bunch.multiclass:
@@ -226,7 +274,7 @@ def main(args):
             m.weight.data.uniform_(-he_lim, he_lim)
             print(f'\nWeight initializations: {m.weight}')
 
-    return dict(init_optimizer=optimizer, train=train, test=test, net=net)
+    return dict(init_optimizer=optimizer, train=train, test=test, val=val, net=net)
 
 if __name__ == '__main__':
     main()

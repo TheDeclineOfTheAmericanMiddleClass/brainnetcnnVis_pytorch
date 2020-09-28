@@ -147,8 +147,8 @@ if 'BNCNN' in uncond_args.model and 'Johann_mega_graph' in uncond_args.chosen_di
 if uncond_args.deconfound_flavor != 'X0Y0' and uncond_args.confound_names is None:
     parser.exit('If deconfounding is desired, please choose at least one confound')
 
-if uncond_args.cv_folds < 2:
-    parser.exit('Cross validation folds must be >= 2')
+if uncond_args.cv_folds < 1:
+    parser.exit('Cross validation folds must be > 0')
 
 if 'SVM' in uncond_args.model and len(uncond_args.predicted_outcome) > 1:
     parser.exit('SVM cannot handle multioutcome problems.')

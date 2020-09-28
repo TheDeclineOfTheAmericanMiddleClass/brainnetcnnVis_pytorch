@@ -11,7 +11,7 @@ def main(args):
     # make one subplot for each non-nan metric
     # for all sets, plot data with label, add legend
     # suptitle as below
-    # performance[:performance['stop_int'].values].loc[dict(metrics=['loss','accuracy'])]
+    # performance[:performance['estop_epoch'].values].loc[dict(metrics=['loss','accuracy'])]
 
     metrics = ['MAE', 'pearsonR', 'loss']
     fig, axs = plt.subplots(nrows=len(performance.outcome.values), ncols=len(metrics),
