@@ -131,7 +131,7 @@ def main(args):
 
             running_loss += loss.data.mean(0)  # only predicting 1 feature
 
-            # TODO: see iff accumulated gradient speeds up training
+            # TODO: see if accumulated gradient speeds up training
             # # 16 accumulated gradient steps
             # scaled_loss = 0
             # for accumulated_step_i in range(16):
@@ -274,7 +274,7 @@ def main(args):
             m.weight.data.uniform_(-he_lim, he_lim)
             print(f'\nWeight initializations: {m.weight}')
 
-    return dict(init_optimizer=optimizer, train=train, test=test, val=val, net=net)
+    return dict(train=train, test=test, val=val, net=net)
 
 if __name__ == '__main__':
     main()
