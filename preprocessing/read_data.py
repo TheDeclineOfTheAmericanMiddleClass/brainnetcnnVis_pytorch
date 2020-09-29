@@ -35,24 +35,26 @@ def main(args):
                     '/raid/projects/Adu/brainnetcnnVis_pytorch/data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
                 tasknames = bunch.chosen_Xdatavars.copy()  # keys for chosen tasks
 
-                # only task-relevant dec, pd, and tan matrices read in
-                if bunch.deconfound_flavor in ['X1Y0', 'X1Y1']:
-                    print('\nchecking for saved deconfounded matrices...')
-                    dec_vars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in tasknames]
-                    avail_dec_vars = [var for var in dec_vars if var in list(cdata.data_vars)]  # those available
-                    tasknames.extend(avail_dec_vars)
+                if bunch.cv_folds == 1:  # read in pre-transformed matrices, if only no cross-validation
 
-                if bunch.transformations in ['positive definite', 'tangent']:
-                    print('checking for saved positive matrices...')
-                    pd_vars = [f'pd_{datavar}' for datavar in dec_vars]  # name for PD matrices
-                    avail_pd_vars = [var for var in pd_vars if var in list(cdata.data_vars)]  # those available
-                    tasknames.extend(avail_pd_vars)
+                    # only task-relevant dec, pd, and tan matrices read in
+                    if bunch.deconfound_flavor in ['X1Y0', 'X1Y1']:
+                        print('\nchecking for saved deconfounded matrices...')
+                        dec_vars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in tasknames]
+                        avail_dec_vars = [var for var in dec_vars if var in list(cdata.data_vars)]  # those available
+                        tasknames.extend(avail_dec_vars)
 
-                if bunch.transformations in ['tangent']:
-                    print('checking for saved tangent matrices...\n')
-                    tan_vars = [f'tan_{datavar}' for datavar in dec_vars]  # name for tangent matrices
-                    avail_tan_vars = [var for var in tan_vars if var in list(cdata.data_vars)]  # those available
-                    tasknames.extend(avail_tan_vars)
+                    if bunch.transformations in ['positive definite', 'tangent']:
+                        print('checking for saved positive matrices...')
+                        pd_vars = [f'pd_{datavar}' for datavar in dec_vars]  # name for PD matrices
+                        avail_pd_vars = [var for var in pd_vars if var in list(cdata.data_vars)]  # those available
+                        tasknames.extend(avail_pd_vars)
+
+                    if bunch.transformations in ['tangent']:
+                        print('checking for saved tangent matrices...\n')
+                        tan_vars = [f'tan_{datavar}' for datavar in dec_vars]  # name for tangent matrices
+                        avail_tan_vars = [var for var in tan_vars if var in list(cdata.data_vars)]  # those available
+                        tasknames.extend(avail_tan_vars)
 
                 try:
                     cdata = cdata[tasknames]  # checking if all tasks there, and loading in only necessaries
