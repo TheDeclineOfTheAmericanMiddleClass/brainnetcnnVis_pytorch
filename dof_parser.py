@@ -56,7 +56,7 @@ hyper.add_argument('--max_norm', default=1.5, type=float,
 epochs = parser.add_argument_group('epochs', 'training iterations params')
 epochs.add_argument('--n_epochs', default=300, type=int, help='max epochs to train BNCNN over', nargs='?')
 epochs.add_argument('-ea', '--early', action='store_true', help='early stopping')
-epochs.add_argument('--cv_folds', default=5, type=int, help='cross validation folds for SVM', nargs='?')
+epochs.add_argument('--cv_folds', default=5, type=int, help='cross validation folds', nargs='?')
 epochs.add_argument('--ep_int', type=int, default=5, help='if no improvement after {ep_int} epochs, stop early',
                     nargs='?')
 epochs.add_argument('--min_ep', default=50, type=int, help='mininmum epochs to train before early stopping',
@@ -170,19 +170,25 @@ if args.model == ['BNCNN']:
     print('reading data...')
     pargs.update(read_data.main(pargs))
 
-    from analysis import load_model_data, init_model, train_model
+    if args.cv_folds == 1:
+        from analysis import load_model_data, init_model, train_model
 
-    print('loading model data...')
-    pargs.update(load_model_data.main(pargs))
+        print('loading model data...')
+        pargs.update(load_model_data.main(pargs))
 
-    from analysis import define_models  # import must directly precede define_models.main()
+        from analysis import define_models  # import must directly precede define_models.main()
 
-    print('defining models...')
-    pargs.update(define_models.main(pargs))
-    print('initializing model...')
-    pargs.update(init_model.main(pargs))
-    print('training model...')
-    pargs.update(train_model.main(pargs))
+        print('defining models...')
+        pargs.update(define_models.main(pargs))
+        print('initializing model...')
+        pargs.update(init_model.main(pargs))
+        print('training model...')
+        pargs.update(train_model.main(pargs))
+
+    else:
+        from analysis import cv_load_define_init_train_model
+
+        cv_load_define_init_train_model.main(pargs)
 
     print('\nBNCNN training done!\n')
 
