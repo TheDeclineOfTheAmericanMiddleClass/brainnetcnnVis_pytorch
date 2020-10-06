@@ -28,7 +28,6 @@ def main(args):
     bunch = Bunch(args)
 
     cdata = bunch.cdata
-    chosen_Xdatavars = bunch.chosen_Xdatavars
 
     # # calculate number of classes and number of outcomes
     if bunch.predicted_outcome[0] in multiclass_outcomes:  # NOTE: can only handle multiclass, single outcome prediction
@@ -96,15 +95,35 @@ def main(args):
     train_folds = list(itertools.combinations(range(bunch.cv_folds), bunch.cv_folds - 1))
     test_folds = [list(set(range(bunch.cv_folds)) - set(train_folds))[0] for _, train_folds in enumerate(train_folds)]
 
-    # # start of cv_fold training loop
+    # items = [cdata, chosen_Xdatavars, train_subs, test_subs, train_folds, test_folds, train_test_splits, num_outcome,
+    #          multi_outcome, multiclass]
+    # kwargs = dict(zip([namestr(i, locals()) for i in items], items))
+    #
+    # def cv_load_define_init_train_model(cv_folds):
+
+    # tracking id of models as sanity check
+    net_ids = []
+
+    # start of cv_fold training loop
     for fold in range(bunch.cv_folds):
 
-        gc.collect()  # cleaning up space before looping through fold
+        print(f'\nTraining fold {fold}')
+
+        gc.collect()  # cleaning up space
+
+        # get non-fold-specific data
+        cdata = bunch.cdata
+        chosen_Xdatavars = bunch.chosen_Xdatavars
+        datavar_data = cdata[chosen_Xdatavars]
 
         # loading in cdata file for fold, if it exists
         fold_cdata_path = f'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM_preprocessed_fold{fold}.nc'
         if os.path.isfile(fold_cdata_path):
             cdata = xr.load_dataset(fold_cdata_path)
+
+        # ensure chosen data variables are in cdata
+        if chosen_Xdatavars not in list(cdata.data_vars):
+            cdata = xr.merge([cdata, datavar_data])
 
         # defining train, test, validaton sets
         partition_subs = dict()  # dict for subject numbers by partition
@@ -120,7 +139,7 @@ def main(args):
         else:
             tf_str = []
 
-        # if cv_folds == 1, using parvathy's origianl train, test subs; validation set always read in per this split
+        # using parvathy's original validation set
         partition_subs["train"], partition_inds["train"], _ = np.intersect1d(bunch.subnums, train_subs,
                                                                              return_indices=True)
         partition_subs["test"], partition_inds["test"], _ = np.intersect1d(bunch.subnums, test_subs,
@@ -140,11 +159,11 @@ def main(args):
 
         if bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
 
-            print(f'Checking if {len(bunch.chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
+            print(f'Checking if {len(chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
             dec_count = 0
 
             # deconfounding all chosen data variables
-            for i, datavar in enumerate(bunch.chosen_Xdatavars):
+            for i, datavar in enumerate(chosen_Xdatavars):
 
                 gc.collect()  # cleaning up space before transformation
 
@@ -152,7 +171,7 @@ def main(args):
                 dec_Xvar = f'dec{"".join(tf_str)}_{"_".join(bunch.confound_names)}_{datavar}'
 
                 if dec_Xvar in list(cdata.data_vars):  # check if positive definite data already saved in xarray
-                    print(f"{dec_Xvar} is a saved data variacble. Skipping over deconfounding of {datavar}...\n")
+                    print(f"{dec_Xvar} is a saved data variable. Skipping over deconfounding of {datavar}...\n")
                     continue
 
                 cdata = cdata.assign({dec_Xvar: cdata[datavar]})  # duplicate data variable
@@ -188,7 +207,7 @@ def main(args):
 
             # updating names of chosen datavars
             chosen_Xdatavars = ['_'.join([f'dec{"".join(tf_str)}', '_'.join(bunch.confound_names),
-                                          x]) for x in bunch.chosen_Xdatavars]
+                                          x]) for x in chosen_Xdatavars]
 
         if bunch.deconfound_flavor == 'X0Y0' or bunch.deconfound_flavor == 'X1Y0':
             Y = outcome
@@ -295,17 +314,18 @@ def main(args):
             Y = xr.DataArray(Y, coords=dict(subject=bunch.cdata.subject.values), dims='subject')
 
         X = cdata
-        out = dict(multi_outcome=multi_outcome, X=X, Y=Y, num_outcome=num_outcome, num_classes=num_classes,
-                   multiclass=multiclass, partition_subs=partition_subs, partition_inds=partition_inds,
-                   chosen_Xdatavars=chosen_Xdatavars)
 
-        if multiclass:  # add class weights
-            out['y_weights_dict'] = y_weights_dict
-            out['y_weights'] = y_weights
-
-        # updating bunch with new arguments, cleaning up variable space
-        args.update(out)
-        bunch = Bunch(args)
+        # out = dict(multi_outcome=multi_outcome, X=X, Y=Y, num_outcome=num_outcome, num_classes=num_classes,
+        #            multiclass=multiclass, partition_subs=partition_subs, partition_inds=partition_inds,
+        #            chosen_Xdatavars=chosen_Xdatavars)
+        #
+        # if multiclass:  # add class weights
+        #     out['y_weights_dict'] = y_weights_dict
+        #     out['y_weights'] = y_weights
+        #
+        # # updating bunch with new arguments, cleaning up variable space
+        # args.update(out)
+        # bunch = Bunch(args)
 
         class HCPDataset(torch.utils.data.Dataset):
 
@@ -324,24 +344,21 @@ def main(args):
 
                 if self.mode == "train":
                     x = xr.merge(
-                        [bunch.X[var].sel(dict(subject=bunch.partition_subs['train'])) for var in
-                         bunch.chosen_Xdatavars]).to_array().values
-                    # y = bunch.Y[bunch.partition_inds["train"]]
-                    y = bunch.Y.loc[dict(subject=bunch.partition_subs['train'])].values
+                        [X[var].sel(dict(subject=partition_subs['train'])) for var in
+                         chosen_Xdatavars]).to_array().values
+                    y = Y.loc[dict(subject=partition_subs['train'])].values
 
                 elif self.mode == "test":
                     x = xr.merge(
-                        [bunch.X[var].sel(dict(subject=bunch.partition_subs['test'])) for var in
-                         bunch.chosen_Xdatavars]).to_array().values
-                    # y = bunch.Y[bunch.partition_inds["test"]]
-                    y = bunch.Y.loc[dict(subject=bunch.partition_subs['test'])].values
+                        [X[var].sel(dict(subject=partition_subs['test'])) for var in
+                         chosen_Xdatavars]).to_array().values
+                    y = Y.loc[dict(subject=partition_subs['test'])].values
 
                 elif mode == "valid":
                     x = xr.merge(
-                        [bunch.X[var].sel(dict(subject=bunch.partition_subs["val"])) for var in
-                         bunch.chosen_Xdatavars]).to_array().values
-                    # y = bunch.Y[bunch.partition_inds["val"]]
-                    y = bunch.Y.loc[dict(subject=bunch.partition_subs["val"])].values
+                        [X[var].sel(dict(subject=partition_subs["val"])) for var in
+                         chosen_Xdatavars]).to_array().values
+                    y = Y.loc[dict(subject=partition_subs["val"])].values
 
                 x = x.reshape(-1, bunch.num_input, x.shape[-1], x.shape[-1]).squeeze()
 
@@ -472,7 +489,7 @@ def main(args):
                 self.e2econv1 = E2EBlock(example.size(1), 16, example, bias=True)
                 self.E2N = torch.nn.Conv2d(16, 128, (1, self.d))
                 self.N2G = torch.nn.Conv2d(128, 26, (self.d, 1))
-                self.dense1 = torch.nn.Linear(26, bunch.num_classes)
+                self.dense1 = torch.nn.Linear(26, num_classes)
 
                 for m in self.modules():  # initializing weights
                     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -501,7 +518,7 @@ def main(args):
                 self.e2econv1 = E2EBlock(example.size(1), 38, example, bias=True)
                 self.E2N = torch.nn.Conv2d(38, 58, (1, self.d))
                 self.N2G = torch.nn.Conv2d(58, 7, (self.d, 1))
-                self.dense1 = torch.nn.Linear(7, bunch.num_classes)
+                self.dense1 = torch.nn.Linear(7, num_classes)
 
                 for m in self.modules():  # initializing weights
                     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -534,10 +551,10 @@ def main(args):
                 self.N2G = torch.nn.Conv2d(1, 256, (self.d, 1))
                 self.dense1 = torch.nn.Linear(256, 128)  # init
                 self.dense2 = torch.nn.Linear(128, 30)
-                if bunch.multiclass:
-                    self.dense3 = torch.nn.Linear(30, bunch.num_classes)
+                if multiclass:
+                    self.dense3 = torch.nn.Linear(30, num_classes)
                 else:
-                    self.dense3 = torch.nn.Linear(30, bunch.num_outcome)
+                    self.dense3 = torch.nn.Linear(30, num_outcome)
 
                 for m in self.modules():
                     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -555,7 +572,7 @@ def main(args):
                 out = F.dropout(F.relu(self.dense1(out)), p=0.5)
                 out = F.dropout(F.relu(self.dense2(out)), p=0.5)
 
-                if bunch.multiclass:
+                if multiclass:
                     out = torch.sigmoid(self.dense3(out))
                 else:
                     out = F.relu(self.dense3(out))
@@ -577,7 +594,7 @@ def main(args):
                 self.dense1 = torch.nn.Linear(256, 128)
                 self.dense2 = torch.nn.Linear(128, 30)
                 self.batchnorm = torch.nn.BatchNorm1d(30)
-                self.dense3 = torch.nn.Linear(30, bunch.num_outcome)
+                self.dense3 = torch.nn.Linear(30, num_outcome)
 
                 for m in self.modules():
                     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -680,10 +697,10 @@ def main(args):
                 self.E2N = torch.nn.Conv2d(18, 19, (1, self.d))
                 self.N2G = torch.nn.Conv2d(19, 84, (self.d, 1))
 
-                if bunch.multiclass:
-                    self.dense1 = torch.nn.Linear(84, bunch.num_classes)
+                if multiclass:
+                    self.dense1 = torch.nn.Linear(84, num_classes)
                 else:
-                    self.dense1 = torch.nn.Linear(84, bunch.num_outcome)
+                    self.dense1 = torch.nn.Linear(84, num_outcome)
 
                 for m in self.modules():  # initializing weights
                     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
@@ -740,6 +757,10 @@ def main(args):
             net = net.to(bunch.device)
             cudnn.benchmark = True
 
+        # sanity check for fresh model
+        assert id(net) not in net_ids, 'No new net was instantiated. Please debug.'
+        net_ids.append(id(net))  # adding id to list
+
         # ensure model parameters are on GPU
         assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
@@ -769,11 +790,11 @@ def main(args):
             raise KeyError(f'{bunch.optimizer} is not a valid optimizer. Please try again.')
 
         # # defining loss functions
-        if bunch.multiclass:
-            if bunch.num_classes == 2:
-                criterion = nn.BCELoss(weight=torch.Tensor(bunch.y_weights).cuda())  # balanced Binary Cross Entropy
-            elif bunch.num_classes > 2:
-                criterion = nn.CrossEntropyLoss(weight=torch.Tensor(bunch.y_weights).cuda())
+        if multiclass:
+            if num_classes == 2:
+                criterion = nn.BCELoss(weight=torch.Tensor(y_weights).cuda())  # balanced Binary Cross Entropy
+            elif num_classes > 2:
+                criterion = nn.CrossEntropyLoss(weight=torch.Tensor(y_weights).cuda())
         else:
             criterion = torch.nn.MSELoss()
 
@@ -787,7 +808,7 @@ def main(args):
             for batch_idx, (inputs, targets) in enumerate(trainloader):
 
                 if bunch.use_cuda:
-                    if not bunch.multi_outcome and not bunch.multiclass:
+                    if not multi_outcome and not multiclass:
                         # print('unsqueezing target for vstack...')
                         inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
                             1)  # unsqueezing for vstack
@@ -801,7 +822,7 @@ def main(args):
                 outputs = net(inputs)
                 targets = targets.view(outputs.size())
 
-                if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                if multiclass and num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
                     loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
                 else:
                     loss = criterion(input=outputs, target=targets)
@@ -850,7 +871,7 @@ def main(args):
 
             # return running_loss / batch_idx
 
-            if not bunch.multi_outcome and not bunch.multiclass:
+            if not multi_outcome and not multiclass:
                 # print('y_true left well enough alone...')
                 return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
             else:
@@ -868,7 +889,7 @@ def main(args):
 
             for batch_idx, (inputs, targets) in enumerate(testloader):
                 if bunch.use_cuda:
-                    if not bunch.multi_outcome and not bunch.multiclass:
+                    if not multi_outcome and not multiclass:
                         # print('unsqueezing target for vstack...')
                         inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
                             1)  # unsqueezing for vstack
@@ -882,7 +903,7 @@ def main(args):
                     outputs = net(inputs)
                     targets = targets.view(outputs.size())
 
-                    if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                    if multiclass and num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
                         loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
                     else:
                         loss = criterion(input=outputs, target=targets)
@@ -899,7 +920,7 @@ def main(args):
                     print('\nTest loss: %.6f' % (running_loss / len(testloader) - 1))
                     running_loss = 0.0
 
-            if not bunch.multi_outcome and not bunch.multiclass:
+            if not multi_outcome and not multiclass:
                 # print('y_true left well enough alone...')
                 return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
             else:
@@ -916,7 +937,7 @@ def main(args):
 
             for batch_idx, (inputs, targets) in enumerate(valloader):
                 if bunch.use_cuda:
-                    if not bunch.multi_outcome and not bunch.multiclass:
+                    if not multi_outcome and not multiclass:
                         # print('unsqueezing target for vstack...')
                         inputs, targets = inputs.to(bunch.device), targets.to(bunch.device).unsqueeze(
                             1)  # unsqueezing for vstack
@@ -930,7 +951,7 @@ def main(args):
                     outputs = net(inputs)
                     targets = targets.view(outputs.size())
 
-                    if bunch.multiclass and bunch.num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
+                    if multiclass and num_classes > 2:  # targets is encoded as one-hot by CrossEntropyLoss
                         loss = criterion(input=outputs, target=torch.argmax(targets.data, 1))
                     else:
                         loss = criterion(input=outputs, target=targets)
@@ -947,7 +968,7 @@ def main(args):
                     print('Val loss: %.6f' % (running_loss / len(valloader) - 1))
                     running_loss = 0.0
 
-            if not bunch.multi_outcome and not bunch.multiclass:
+            if not multi_outcome and not multiclass:
                 # print('y_true left well enough alone...')
                 return np.vstack(preds), np.vstack(ytrue), running_loss / batch_idx
             else:
@@ -968,33 +989,31 @@ def main(args):
 
         gc.collect()  # cleaning up space before training
 
-        print(f'\nFold {fold}'
-              f'\nUsing data: ', bunch.chosen_Xdatavars,
-              f'\nPredicting: {", ".join(bunch.predicted_outcome)}')
-
         # initializing network and prediction from starting weights
-        print("\nInit Network")
+        print("\nInit Network",
+              f'\nUsing data: ', chosen_Xdatavars,
+              f'\nPredicting: {", ".join(bunch.predicted_outcome)}')
 
         testp, testy, loss_test = test()
         valp, valy, loss_val = val()
 
         # printing performance before any training
-        if bunch.multi_outcome:  # calculate predictive performance of multiple variables
+        if multi_outcome:  # calculate predictive performance of multiple variables
 
             # calculate performance metrics
-            test_mae_all = np.array([mae(testy[:, i], testp[:, i]) for i in range(bunch.num_outcome)])
-            test_pears_all = np.array([list(pearsonr(testy[:, i], testp[:, i])) for i in range(bunch.num_outcome)])
+            test_mae_all = np.array([mae(testy[:, i], testp[:, i]) for i in range(num_outcome)])
+            test_pears_all = np.array([list(pearsonr(testy[:, i], testp[:, i])) for i in range(num_outcome)])
 
-            val_mae_all = np.array([mae(valy[:, i], valp[:, i]) for i in range(bunch.num_outcome)])
-            val_pears_all = np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(bunch.num_outcome)])
+            val_mae_all = np.array([mae(valy[:, i], valp[:, i]) for i in range(num_outcome)])
+            val_pears_all = np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
 
             # print metrics
-            for i in range(bunch.num_outcome):
+            for i in range(num_outcome):
                 print(f"\n{bunch.predicted_outcome[i]}"
                       f"\nTest MAE : {100 * test_mae_all[i]:.2}, pearson R: {test_pears_all[i, 0]:.2} (p = {test_pears_all[i, 1]:.2})"
                       f"\nVal MAE : {100 * val_mae_all[i]:.2}, pearson R: {val_pears_all[i, 0]:.2} (p = {val_pears_all[i, 1]:.2})")
 
-        elif bunch.multiclass:  # calculate classification performance
+        elif multiclass:  # calculate classification performance
 
             # calculate performance metrics
             test_acc = balanced_accuracy_score(np.argmax(testy, 1), np.argmax(testp, 1))
@@ -1004,7 +1023,7 @@ def main(args):
             print(f"Test accuracy : {test_acc:.3}")
             print(f"Val accuracy : {val_acc:.3}")
 
-        elif not bunch.multiclass and not bunch.multi_outcome:  # calculate predictive performance of 1 variable
+        elif not multiclass and not multi_outcome:  # calculate predictive performance of 1 variable
             test_mae = mae(testp[:, 0], testy[:, 0])
             test_pears = pearsonr(testp[:, 0], testy[:, 0])
 
@@ -1029,21 +1048,21 @@ def main(args):
             print("\nEpoch %d" % epoch)
 
             # calculate performance from all sets, print for validation and test
-            if bunch.multi_outcome:
+            if multi_outcome:
 
                 # calculate performance metrics
                 test_mae_all, train_mae_all, val_mae_all = \
-                    np.array([mae(testy[:, i], testp[:, i]) for i in range(bunch.num_outcome)]), \
-                    np.array([mae(trainy[:, i], trainp[:, i]) for i in range(bunch.num_outcome)]), \
-                    np.array([mae(valy[:, i], valp[:, i]) for i in range(bunch.num_outcome)])
+                    np.array([mae(testy[:, i], testp[:, i]) for i in range(num_outcome)]), \
+                    np.array([mae(trainy[:, i], trainp[:, i]) for i in range(num_outcome)]), \
+                    np.array([mae(valy[:, i], valp[:, i]) for i in range(num_outcome)])
 
                 test_pears_all, train_pears_all, val_pears_all = \
-                    np.array([list(pearsonr(testy[:, i], testp[:, i])) for i in range(bunch.num_outcome)]), \
-                    np.array([list(pearsonr(trainy[:, i], trainp[:, i])) for i in range(bunch.num_outcome)]), \
-                    np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(bunch.num_outcome)])
+                    np.array([list(pearsonr(testy[:, i], testp[:, i])) for i in range(num_outcome)]), \
+                    np.array([list(pearsonr(trainy[:, i], trainp[:, i])) for i in range(num_outcome)]), \
+                    np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
 
                 # print metrics
-                for i in range(bunch.num_outcome):
+                for i in range(num_outcome):
                     print(f"{bunch.predicted_outcome[i]}"
                           f"\nTrain MAE : {train_mae_all[i]:.2}, pearson R: {train_pears_all[i, 0]:.2} (p = {train_pears_all[i, 1]:.2})"
                           f"\nTest MAE : {test_mae_all[i]:.2}, pearson R: {test_pears_all[i, 0]:.2} (p = {test_pears_all[i, 1]:.2})"
@@ -1057,7 +1076,7 @@ def main(args):
                 performance.loc[dict(epoch=epoch, set="val", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
                     [val_mae_all, val_pears_all[:, 0], val_pears_all[:, 1]]
 
-            elif bunch.multiclass:
+            elif multiclass:
 
                 # calculate performance metrics
                 testp, testy, trainp, trainy, valp, valy = np.argmax(testp, 1), np.argmax(testy, 1), \
@@ -1079,9 +1098,9 @@ def main(args):
                 performance.loc[dict(epoch=epoch, set="train", metrics=['accuracy'], cv_fold=fold)] = train_acc
                 performance.loc[dict(epoch=epoch, set="val", metrics=['accuracy'], cv_fold=fold)] = val_acc
 
-            elif not bunch.multi_outcome and not bunch.multiclass:
+            elif not multi_outcome and not multiclass:
 
-                # calculate performance metrics 
+                # calculate performance metrics
                 test_mae, train_mae, val_mae = mae(testp, testy), \
                                                mae(trainp, trainy), \
                                                mae(valp, valy)
@@ -1105,10 +1124,10 @@ def main(args):
                     np.array([val_mae, val_pears[0], val_pears[1]])[:, None]
 
             # save model parameters iteratively, for each best epoch during training
-            if bunch.multiclass:
+            if multiclass:
                 best_epoch_yet = \
                     bool(epoch == performance.loc[dict(set='test', metrics='accuracy', cv_fold=fold)].argmax().values)
-            elif bunch.multi_outcome:  # best epoch has lowest mean error
+            elif multi_outcome:  # best epoch has lowest mean error
                 best_epoch_yet = bool(epoch == performance.loc[dict(set='test', metrics='MAE', cv_fold=fold)].mean(
                     axis=-1).argmin().values)
             else:
@@ -1122,8 +1141,8 @@ def main(args):
             # Check every ep_int epochs. If there is no improvement on performance metrics, stop training early
             if bunch.early:
                 if epoch > bunch.min_ep:
-                    if bunch.multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
-                        majority = int(np.ceil(bunch.num_outcome / 2))
+                    if multi_outcome:  # if model stops learning on at least half of predicted outcomes, break
+                        majority = int(np.ceil(num_outcome / 2))
 
                         stagnant_mae = (np.nanmean(
                             performance[epoch - bunch.ep_int:-1].loc[dict(set='test', metrics='MAE', cv_fold=fold)],
@@ -1144,14 +1163,14 @@ def main(args):
                                 f'estop_epoch_fold_{fold}'] = epoch - bunch.ep_int  # update early stopping epoch to dict
                             break
 
-                    elif bunch.multiclass:
+                    elif multiclass:
                         if np.nanmean(performance[epoch - bunch.ep_int:-1].loc[
                                           dict(set='test', metrics='accuracy', cv_fold=fold)]
                                       <= performance[epoch].loc[dict(set='test', metrics='accuracy', cv_fold=fold)]):
                             estop_epochs[
                                 f'estop_epoch_fold_{fold}'] = epoch - bunch.ep_int  # update early stopping epoch to dict
                             break
-                    elif not bunch.multiclass and not bunch.multi_outcome:
+                    elif not multiclass and not multi_outcome:
                         stagnant_mae = np.nanmean(
                             performance[epoch - bunch.ep_int:-1].loc[dict(set='test', metrics='MAE', cv_fold=fold)],
                             axis=0) <= performance[epoch].loc[dict(set='test', metrics='MAE', cv_fold=fold)]
@@ -1169,13 +1188,12 @@ def main(args):
         # saving model weights with best test-performance
         torch.save(best_net, os.path.join('models', model_preamble + f'_epoch-{best_test_epoch}_fold-{fold}_model.pt'))
 
-        del best_net, net  # deleting from memory
 
     # Create attribute dicitonary, to hold training params
     attrs = dict(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                  predicted_outcome=bunch.po_str, transformations=bunch.transformations,
                  deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
-                 multiclass=bunch.multiclass, multi_outcome=bunch.multi_outcome,
+                 multiclass=multiclass, multi_outcome=multi_outcome,
                  cv_folds=bunch.cv_folds)
 
     attrs.update(best_test_epochs)  # adding best test epochs as attributes
