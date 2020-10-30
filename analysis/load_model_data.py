@@ -1,3 +1,7 @@
+import itertools
+import os
+import pickle
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -21,7 +25,7 @@ def main(args):
     multiclass = bool(num_classes > 1)
 
     # specifying outcome and its shape
-    if 'Gender' in bunch.predicted_outcome:  # TODO: later, implement logic for (multiclass + continuous) outcomes
+    if 'Gender' in bunch.predicted_outcome:
         outcome = np.where(np.array([pd.get_dummies(cdata[x].values, dtype=bool).to_numpy()
                                      for x in bunch.predicted_outcome]).squeeze())[1].astype(float)
     else:
@@ -44,11 +48,25 @@ def main(args):
     partition_subs = dict()  # dict for subject numbers by set split
     partition_inds = dict()  # dict for subject indices by set split
 
-    partition_subs["train"], partition_inds["train"], _ = np.intersect1d(bunch.subnums,
-                                                                         np.loadtxt(subnum_paths["train"]),
-                                                                         return_indices=True)
-    partition_subs["test"], partition_inds["test"], _ = np.intersect1d(bunch.subnums, np.loadtxt(subnum_paths["test"]),
-                                                                       return_indices=True)
+    if bunch.cv_folds > 1:  # conditional allows fold-specific data loading in calc_new_metric.py
+        fold_cdata_path = f'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM_preprocessed_fold{bunch.fold}.nc'
+        sbf_path = os.path.join('subject_splits', f'{bunch.cv_folds}_train_test_splits.pkl')  # subs by fold
+
+        cdata = xr.load_dataset(fold_cdata_path)
+        train_test_splits = pickle.load(open(sbf_path, "rb"))  # read in file
+        train_folds = list(itertools.combinations(range(bunch.cv_folds), bunch.cv_folds - 1))
+        test_folds = [list(set(range(bunch.cv_folds)) - set(train_folds))[0] for _, train_folds in
+                      enumerate(train_folds)]
+        train_subs = np.hstack([train_test_splits[i] for i in train_folds[bunch.fold]])
+        test_subs = np.array(train_test_splits[test_folds[bunch.fold]]).squeeze()
+        tf_str = [str(i) for i in train_folds[bunch.fold]]  # list of str denoting the folds used to transform data
+        tf_str.sort()  # sorting for consistency
+    else:
+        train_subs = np.loadtxt(subnum_paths["train"])
+        test_subs = np.loadtxt(subnum_paths["test"])
+
+    partition_subs["train"], partition_inds["train"], _ = np.intersect1d(bunch.subnums, train_subs, return_indices=True)
+    partition_subs["test"], partition_inds["test"], _ = np.intersect1d(bunch.subnums, test_subs, return_indices=True)
     partition_subs["val"], partition_inds["val"], _ = np.intersect1d(bunch.subnums, np.loadtxt(subnum_paths["val"]),
                                                                      return_indices=True)
 
@@ -69,11 +87,14 @@ def main(args):
 
         for i, datavar in enumerate(bunch.chosen_Xdatavars):
 
-            dec_Xvar = f'dec_{"_".join(bunch.confound_names)}_{datavar}'  # name for positive definite transformed mats
+            if bunch.cv_folds > 1:  # conditional allows fold-specific data loading in calc_new_metric.py
+                dec_Xvar = f'dec{"".join(tf_str)}_{"_".join(bunch.confound_names)}_{datavar}'
+            else:
+                dec_Xvar = f'dec_{"_".join(bunch.confound_names)}_{datavar}'  # name for positive definite transformed mats
             # dec_Yvar = f'{"_".join(predicted_outcome)}_dec_{"_".join(confound_names)}_{datavar}'
 
             if dec_Xvar in list(cdata.data_vars):  # check if positive definite data already saved in xarray
-                print(f"{dec_Xvar} is a saved data variable. Skipping over deconfounding of {datavar}...\n")
+                print(f"{dec_Xvar} is a saved data variable. Skipping over deconfounding of {datavar}.\n")
                 continue
 
             cdata = cdata.assign({dec_Xvar: cdata[datavar]})
@@ -110,7 +131,11 @@ def main(args):
                 cdata.to_netcdf('data/cfHCP900_FSL_GM/cfHCP900_FSL_GM.nc')
 
         # updating chosen datavars
-        chosen_Xdatavars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in bunch.chosen_Xdatavars]
+        if bunch.cv_folds > 1:
+            chosen_Xdatavars = ['_'.join([f'dec{"".join(tf_str)}', '_'.join(bunch.confound_names),
+                                          x]) for x in chosen_Xdatavars]
+        else:
+            chosen_Xdatavars = ['_'.join(['dec', '_'.join(bunch.confound_names), x]) for x in bunch.chosen_Xdatavars]
 
         # TODO: set logic here for X1Y1: Y = outcome
 
@@ -168,7 +193,10 @@ def main(args):
         if bunch.transformations == 'tangent':
             for i, datavar in enumerate(chosen_Xdatavars):
 
-                tan_var = f'tan_{datavar}'  # name for tangent transformed mats
+                if bunch.cv_folds > 1:  # conditional allows fold-specific data loading in calc_new_metric.py
+                    tan_var = f'tan{"".join(tf_str)}_{datavar}'
+                else:
+                    tan_var = f'tan_{datavar}'  # name for tangent transformed mats
 
                 if tan_var in list(cdata.data_vars):  # if tangent data saved in xarray, do no projection
                     print(f'Tangent {datavar} already saved. Skipping tangent projection.\n')
@@ -197,7 +225,10 @@ def main(args):
 
     # updating list of chosen data for training
     if bunch.transformations == 'tangent':
-        chosen_Xdatavars = ['_'.join(['tan', x]) for x in chosen_Xdatavars]
+        if bunch.cv_folds > 1:
+            chosen_Xdatavars = ['_'.join([f'tan{"".join(tf_str)}', x]) for x in chosen_Xdatavars]
+        else:
+            chosen_Xdatavars = ['_'.join(['tan', x]) for x in chosen_Xdatavars]
     elif bunch.transformations == 'positive definite':
         chosen_Xdatavars = ['_'.join(['pd', x]) for x in chosen_Xdatavars]
 

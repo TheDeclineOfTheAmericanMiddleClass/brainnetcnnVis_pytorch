@@ -1,6 +1,5 @@
 import datetime
 import gc
-import itertools
 import os
 import pickle
 
@@ -14,13 +13,13 @@ import torch.nn.init as init
 import torch.utils.data.dataset
 import torch.utils.data.dataset
 import xarray as xr
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import mean_absolute_error as mae
 from torch.autograd import Variable
 
 from utils.util_funcs import Bunch, create_cv_folds, deconfound_dataset, tangent_transform, areNotPD, PD_transform, \
-    multiclass_to_onehot
+    multiclass_to_onehot, namestr
 from utils.var_names import subnum_paths, multiclass_outcomes
 
 
@@ -65,7 +64,7 @@ def main(args):
 
     # setting up xarray to hold performance metrics
     sets = ['train', 'test', 'val']
-    metrics = ['loss', 'accuracy', 'MAE', 'pearsonR', 'p_value']
+    metrics = ['loss', 'accuracy', 'MAE', 'pearsonr', 'pearsonp', 'spearmanr', 'spearmanp']
     alloc_data = np.zeros((bunch.n_epochs, len(sets), len(metrics), num_outcome, bunch.cv_folds))
     alloc_data[:] = np.nan
     performance = xr.DataArray(alloc_data,
@@ -73,33 +72,40 @@ def main(args):
                                        bunch.predicted_outcome, range(bunch.cv_folds)],
                                dims=['epoch', 'set', 'metrics', 'outcome', 'cv_fold'])
 
-    # calculate subject partitions for each fold
+    # load subject partitions for each fold
     train_subs = np.loadtxt(subnum_paths["train"])
     test_subs = np.loadtxt(subnum_paths["test"])
+    val_subs = np.loadtxt(subnum_paths["val"])
 
-    # load dict of subs_by_fold (or create if necessary)
-    sbf_path = os.path.join('subject_splits', f'{bunch.cv_folds}_train_test_splits.pkl')
-    if os.path.isfile(sbf_path):
-        train_test_splits = pickle.load(open(sbf_path, "rb"))  # read in file
-    else:
-        # creating folds without shuffling, to ensure same subjects in each split every run
-        train_test_subs = np.hstack([np.intersect1d(bunch.subnums, train_subs),
-                                     np.intersect1d(bunch.subnums, test_subs)])  # train & test subs
-        subs_by_fold, _ = create_cv_folds(cdata.loc[dict(subject=train_test_subs)], n_folds=bunch.cv_folds,
-                                          separate_families=False, shuffle=False)  # note: test fold size ~ 1 / n_folds
-        train_test_splits = dict(zip(range(bunch.cv_folds), subs_by_fold))  # to dict
-        pickle.dump(train_test_splits, open(sbf_path, "wb"))  # saving
+    # # # DEPRECATED: static validation set
+    # # load dict of subs_by_fold (or create if necessary)
+    # sbf_path = os.path.join('subject_splits', f'{bunch.cv_folds}_train_test_splits.pkl')
+    # if os.path.isfile(sbf_path):
+    #     train_test_splits = pickle.load(open(sbf_path, "rb"))  # read in file
+    # else:
+    #     # creating folds without shuffling, to ensure same subjects in each split every run
+    #     train_test_subs = np.hstack([np.intersect1d(bunch.subnums, train_subs),
+    #                                  np.intersect1d(bunch.subnums, test_subs)])  # train & test subs
+    #     subs_by_fold, _ = create_cv_folds(cdata.loc[dict(subject=train_test_subs)], n_folds=bunch.cv_folds,
+    #                                       separate_families=False, shuffle=False)  # note: test fold size ~ 1 / n_folds
+    #     train_test_splits = dict(zip(range(bunch.cv_folds), subs_by_fold))  # to dict
+    #     pickle.dump(train_test_splits, open(sbf_path, "wb"))  # saving
 
-    # for each of n_folds model trainings, pick an N choose k combination at random
+    # # getting train-test-val subject splits
+    sbf_path = os.path.join('subject_splits', f'{bunch.cv_folds}_train_test_val_splits.pkl')
+    if os.path.isfile(sbf_path):  # load dict of subs_by_fold (or create if necessary)
+        sub_splits = pickle.load(open(sbf_path, "rb"))  # read in file
+    else:  # create folds without shuffling, to ensure same subjects in each split every run.
+        subs_by_fold, _ = create_cv_folds(cdata, n_folds=bunch.cv_folds, separate_families=False, shuffle=False)
+        sub_splits = dict(zip(range(bunch.cv_folds), subs_by_fold))  # to dict
+        pickle.dump(sub_splits, open(sbf_path, "wb"))  # saving
+
+    # for each of n_folds model trainings, pick an N choose k combination at random.
     print('\npartitioning data into arrays to feed to model...')
-    train_folds = list(itertools.combinations(range(bunch.cv_folds), bunch.cv_folds - 1))
-    test_folds = [list(set(range(bunch.cv_folds)) - set(train_folds))[0] for _, train_folds in enumerate(train_folds)]
-
-    # items = [cdata, chosen_Xdatavars, train_subs, test_subs, train_folds, test_folds, train_test_splits, num_outcome,
-    #          multi_outcome, multiclass]
-    # kwargs = dict(zip([namestr(i, locals()) for i in items], items))
-    #
-    # def cv_load_define_init_train_model(cv_folds):
+    fold_mtx = np.tile(range(bunch.cv_folds), (bunch.cv_folds, 1)).flatten()  # fold matrix
+    train_folds = [fold_mtx[i:i + int(bunch.cv_folds - 2)] for i in range(bunch.cv_folds)]
+    test_folds = [fold_mtx[i + int(bunch.cv_folds - 2)] for i in range(bunch.cv_folds)]
+    val_folds = [fold_mtx[i + int(bunch.cv_folds - 1)] for i in range(bunch.cv_folds)]
 
     # tracking id of models as sanity check
     net_ids = []
@@ -117,7 +123,7 @@ def main(args):
         datavar_data = cdata[chosen_Xdatavars]
 
         # loading in cdata file for fold, if it exists
-        fold_cdata_path = f'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM_preprocessed_fold{fold}.nc'
+        fold_cdata_path = f'data/cfHCP900_FSL_GM/cfHCP900_FSL_GM_preprocessed_cv{bunch.cv_folds}_fold{fold}.nc'
         if os.path.isfile(fold_cdata_path):
             cdata = xr.load_dataset(fold_cdata_path)
 
@@ -129,9 +135,10 @@ def main(args):
         partition_subs = dict()  # dict for subject numbers by partition
         partition_inds = dict()  # dict for subject indices by partition
 
-        if bunch.cv_folds > 1:  # set partition subs per the train_test_splits
-            train_subs = np.hstack([train_test_splits[i] for i in train_folds[fold]])
-            test_subs = np.array(train_test_splits[test_folds[fold]]).squeeze()
+        if bunch.cv_folds > 1:  # set partition subs per the splits
+            train_subs = np.hstack([sub_splits[i] for i in train_folds[fold]])
+            test_subs = np.array(sub_splits[test_folds[fold]]).squeeze()
+            val_subs = np.array(sub_splits[val_folds[fold]]).squeeze()
 
             tf_str = [str(i) for i in train_folds[fold]]  # list of str denoting the folds used to transform data
             tf_str.sort()  # sorting for consistency
@@ -139,12 +146,12 @@ def main(args):
         else:
             tf_str = []
 
-        # using parvathy's original validation set
+        # using parvathy's partitioned validation set
         partition_subs["train"], partition_inds["train"], _ = np.intersect1d(bunch.subnums, train_subs,
                                                                              return_indices=True)
         partition_subs["test"], partition_inds["test"], _ = np.intersect1d(bunch.subnums, test_subs,
                                                                            return_indices=True)
-        partition_subs["val"], partition_inds["val"], _ = np.intersect1d(bunch.subnums, np.loadtxt(subnum_paths["val"]),
+        partition_subs["val"], partition_inds["val"], _ = np.intersect1d(bunch.subnums, val_subs,
                                                                          return_indices=True)
 
         # print subject counts for each partition
@@ -155,12 +162,13 @@ def main(args):
         # # Deconfounding X and Y for data classes
         if bunch.deconfound_flavor == 'X1Y1':
             raise NotImplementedError('X1Y1 not implementd yet. Please use another deconfounding method.')
-            # TODO: implement X1Y1 deconfounding
 
         if bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
 
             print(f'Checking if {len(chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
+
             dec_count = 0
+            dec_preamble = '_'.join([f'dec{"".join(tf_str)}_cv{bunch.cv_folds}', "_".join(bunch.confound_names)])
 
             # deconfounding all chosen data variables
             for i, datavar in enumerate(chosen_Xdatavars):
@@ -168,7 +176,7 @@ def main(args):
                 gc.collect()  # cleaning up space before transformation
 
                 # checking by the folds used to transform data
-                dec_Xvar = f'dec{"".join(tf_str)}_{"_".join(bunch.confound_names)}_{datavar}'
+                dec_Xvar = f'{dec_preamble}_{datavar}'
 
                 if dec_Xvar in list(cdata.data_vars):  # check if positive definite data already saved in xarray
                     print(f"{dec_Xvar} is a saved data variable. Skipping over deconfounding of {datavar}...\n")
@@ -201,13 +209,11 @@ def main(args):
 
             # saving any newly deconfounded matrices in HCP_alltasks_268, after all are transformed
             if bunch.chosen_dir == ['HCP_alltasks_268'] and bool(dec_count):
-                # print(f'saving {dec_Xvar} matrices to xarray...\n')
                 print(f'saving deconfounded matrix(es) to xarray...\n')
                 cdata.to_netcdf(fold_cdata_path)
 
             # updating names of chosen datavars
-            chosen_Xdatavars = ['_'.join([f'dec{"".join(tf_str)}', '_'.join(bunch.confound_names),
-                                          x]) for x in chosen_Xdatavars]
+            chosen_Xdatavars = ['_'.join([dec_preamble, x]) for x in chosen_Xdatavars]
 
         if bunch.deconfound_flavor == 'X0Y0' or bunch.deconfound_flavor == 'X1Y0':
             Y = outcome
@@ -267,12 +273,13 @@ def main(args):
             if bunch.transformations == 'tangent':
 
                 tan_count = 0  # count of tangent transformed matrices
+                tan_preamble = f'tan{"".join(tf_str)}_cv{bunch.cv_folds}'
 
                 for i, datavar in enumerate(chosen_Xdatavars):
 
                     gc.collect()  # cleaning up space before transformation
 
-                    tan_var = f'tan{"".join(tf_str)}_{datavar}'  # name for tangent transformed mats
+                    tan_var = f'{tan_preamble}_{datavar}'  # name for tangent transformed mats
 
                     if tan_var in list(cdata.data_vars):  # if tangent data saved in xarray, do no projection
                         print(f'Tangent {datavar} already saved. Skipping tangent projection.\n')
@@ -303,7 +310,7 @@ def main(args):
 
         # updating list of chosen data for training
         if bunch.transformations == 'tangent':
-            chosen_Xdatavars = ['_'.join([f'tan{"".join(tf_str)}', x]) for x in chosen_Xdatavars]
+            chosen_Xdatavars = ['_'.join([tan_preamble, x]) for x in chosen_Xdatavars]
         elif bunch.transformations == 'positive definite':
             chosen_Xdatavars = ['_'.join(['pd', x]) for x in chosen_Xdatavars]
 
@@ -314,18 +321,6 @@ def main(args):
             Y = xr.DataArray(Y, coords=dict(subject=bunch.cdata.subject.values), dims='subject')
 
         X = cdata
-
-        # out = dict(multi_outcome=multi_outcome, X=X, Y=Y, num_outcome=num_outcome, num_classes=num_classes,
-        #            multiclass=multiclass, partition_subs=partition_subs, partition_inds=partition_inds,
-        #            chosen_Xdatavars=chosen_Xdatavars)
-        #
-        # if multiclass:  # add class weights
-        #     out['y_weights_dict'] = y_weights_dict
-        #     out['y_weights'] = y_weights
-        #
-        # # updating bunch with new arguments, cleaning up variable space
-        # args.update(out)
-        # bunch = Bunch(args)
 
         class HCPDataset(torch.utils.data.Dataset):
 
@@ -730,7 +725,7 @@ def main(args):
 
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, pin_memory=False, num_workers=1)
         testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
-        valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
+        valloader = torch.utils.data.DataLoader(valset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
 
         # Creating the model
         if bunch.predicted_outcome == ['Gender'] and bunch.architecture == 'yeo_sex':
@@ -917,7 +912,7 @@ def main(args):
 
                 # print statistics
                 if batch_idx == len(testloader) - 1:  # print for final batch
-                    print('\nTest loss: %.6f' % (running_loss / len(testloader) - 1))
+                    print('\nTest loss: %.6f' % (running_loss / len(testloader)))
                     running_loss = 0.0
 
             if not multi_outcome and not multiclass:
@@ -965,7 +960,7 @@ def main(args):
 
                 # print statistics
                 if batch_idx == len(valloader) - 1:  # print for final batch
-                    print('Val loss: %.6f' % (running_loss / len(valloader) - 1))
+                    print('Val loss: %.6f' % (running_loss / len(valloader)))
                     running_loss = 0.0
 
             if not multi_outcome and not multiclass:
@@ -1000,12 +995,14 @@ def main(args):
         # printing performance before any training
         if multi_outcome:  # calculate predictive performance of multiple variables
 
-            # calculate performance metrics
+            # calculate performance metrics 
             test_mae_all = np.array([mae(testy[:, i], testp[:, i]) for i in range(num_outcome)])
             test_pears_all = np.array([list(pearsonr(testy[:, i], testp[:, i])) for i in range(num_outcome)])
+            test_spear_all = np.array([list(spearmanr(testy[:, i], testp[:, i])) for i in range(num_outcome)])
 
             val_mae_all = np.array([mae(valy[:, i], valp[:, i]) for i in range(num_outcome)])
             val_pears_all = np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
+            val_spear_all = np.array([list(spearmanr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
 
             # print metrics
             for i in range(num_outcome):
@@ -1026,9 +1023,11 @@ def main(args):
         elif not multiclass and not multi_outcome:  # calculate predictive performance of 1 variable
             test_mae = mae(testp[:, 0], testy[:, 0])
             test_pears = pearsonr(testp[:, 0], testy[:, 0])
+            test_spear = spearmanr(testp[:, 0], testy[:, 0])
 
             val_mae = mae(valp[:, 0], valy[:, 0])
             val_pears = pearsonr(valp[:, 0], valy[:, 0])
+            val_spear = spearmanr(valp[:, 0], valy[:, 0])
 
             print(f"Test Set : MAE : {test_mae:.2}, pearson R : {test_pears[0]:.2} (p = {test_pears[1]:.4})")
             print(f"Val Set : MAE : {val_mae:.2}, pearson R : {val_pears[0]:.2} (p = {val_pears[1]:.4})")
@@ -1061,6 +1060,11 @@ def main(args):
                     np.array([list(pearsonr(trainy[:, i], trainp[:, i])) for i in range(num_outcome)]), \
                     np.array([list(pearsonr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
 
+                test_spear_all, train_spear_all, val_spear_all = \
+                    np.array([list(spearmanr(testy[:, i], testp[:, i])) for i in range(num_outcome)]), \
+                    np.array([list(spearmanr(trainy[:, i], trainp[:, i])) for i in range(num_outcome)]), \
+                    np.array([list(spearmanr(valy[:, i], valp[:, i])) for i in range(num_outcome)])
+
                 # print metrics
                 for i in range(num_outcome):
                     print(f"{bunch.predicted_outcome[i]}"
@@ -1069,12 +1073,16 @@ def main(args):
                           f"\nVal MAE : {val_mae_all[i]:.2}, pearson R: {val_pears_all[i, 0]:.2} (p = {val_pears_all[i, 1]:.2})\n")
 
                 # save metrics to xarray
-                performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    [test_mae_all, test_pears_all[:, 0], test_pears_all[:, 1]]
-                performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    [train_mae_all, train_pears_all[:, 0], train_pears_all[:, 1]]
-                performance.loc[dict(epoch=epoch, set="val", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    [val_mae_all, val_pears_all[:, 0], val_pears_all[:, 1]]
+                save_metrics = ['MAE', 'pearsonr', 'pearsonp', 'spearmanr', 'spearmanp']
+                performance.loc[dict(epoch=epoch, set="test", metrics=save_metrics, cv_fold=fold)] = \
+                    [test_mae_all, test_pears_all[:, 0], test_pears_all[:, 1],
+                     test_spear_all[:, 0], test_spear_all[:, 1]]
+                performance.loc[dict(epoch=epoch, set="train", metrics=save_metrics, cv_fold=fold)] = \
+                    [train_mae_all, train_pears_all[:, 0], train_pears_all[:, 1],
+                     train_spear_all[:, 0], train_spear_all[:, 1]]
+                performance.loc[dict(epoch=epoch, set="val", metrics=save_metrics, cv_fold=fold)] = \
+                    [val_mae_all, val_pears_all[:, 0], val_pears_all[:, 1],
+                     val_spear_all[:, 0], val_spear_all[:, 1]]
 
             elif multiclass:
 
@@ -1109,6 +1117,10 @@ def main(args):
                                                      pearsonr(trainp[:, 0], trainy[:, 0]), \
                                                      pearsonr(valp[:, 0], valy[:, 0])
 
+                test_spear, train_spear, val_spear = spearmanr(testp[:, 0], testy[:, 0]), \
+                                                     spearmanr(trainp[:, 0], trainy[:, 0]), \
+                                                     spearmanr(valp[:, 0], valy[:, 0])
+
                 # print metrics
                 print(f"{bunch.predicted_outcome}"
                       f"\nTrain MAE : {train_mae:.3}, pearson R: {train_pears[0]:.3} (p = {train_pears[1]:.4})",
@@ -1116,12 +1128,13 @@ def main(args):
                       f"\nVal MAE : {val_mae:.3}, pearson R: {val_pears[0]:.3} (p = {val_pears[1]:.4})")
 
                 # saving metrics to xarray
-                performance.loc[dict(epoch=epoch, set="test", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    np.array([test_mae, test_pears[0], test_pears[1]])[:, None]
-                performance.loc[dict(epoch=epoch, set="train", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    np.array([train_mae, train_pears[0], train_pears[1]])[:, None]
-                performance.loc[dict(epoch=epoch, set="val", metrics=['MAE', 'pearsonR', 'p_value'], cv_fold=fold)] = \
-                    np.array([val_mae, val_pears[0], val_pears[1]])[:, None]
+                save_metrics = ['MAE', 'pearsonr', 'pearsonp', 'spearmanr', 'spearmanp']
+                performance.loc[dict(epoch=epoch, set="test", metrics=save_metrics, cv_fold=fold)] = \
+                    np.array([test_mae, test_pears[0], test_pears[1], test_spear[0], test_spear[1]])[:, None]
+                performance.loc[dict(epoch=epoch, set="train", metrics=save_metrics, cv_fold=fold)] = \
+                    np.array([train_mae, train_pears[0], train_pears[1], train_spear[0], train_spear[1]])[:, None]
+                performance.loc[dict(epoch=epoch, set="val", metrics=save_metrics, cv_fold=fold)] = \
+                    np.array([val_mae, val_pears[0], val_pears[1], val_spear[0], val_spear[1]])[:, None]
 
             # save model parameters iteratively, for each best epoch during training
             if multiclass:
@@ -1137,6 +1150,9 @@ def main(args):
             if best_epoch_yet:  # making a deep copy iteratively
                 best_test_epoch = epoch
                 best_net = net.state_dict()  # saving dict, not net object
+
+                # save best epoch output
+                best_output = [testp, testy, trainp, trainy, valp, valy]
 
             # Check every ep_int epochs. If there is no improvement on performance metrics, stop training early
             if bunch.early:
@@ -1185,9 +1201,11 @@ def main(args):
 
         best_test_epochs[f'best_test_epoch_fold_{fold}'] = best_test_epoch  # updating best_test_epoch to dict
 
-        # saving model weights with best test-performance
+        # saving model weights and output with best test set performance
         torch.save(best_net, os.path.join('models', model_preamble + f'_epoch-{best_test_epoch}_fold-{fold}_model.pt'))
-
+        pickle.dump(dict(zip([namestr(x, locals()) for x in best_output], best_output)),
+                    open(os.path.join('performance', model_preamble +
+                                      f'_epoch-{best_test_epoch}_fold-{fold}_output.pkl'), "wb"))
 
     # Create attribute dicitonary, to hold training params
     attrs = dict(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
@@ -1201,8 +1219,9 @@ def main(args):
     if bunch.early:  # adding early stopping epochs as attributes, if early stopping
         attrs.update(estop_epochs)
 
-    if bunch.confound_names:  # adding confounds, if any
-        attrs.update(dict(confound_names='_'.join(bunch.confound_names)))
+    if bunch.confound_names:  # adding confounds to attributes, if any
+        for i, confound_name in enumerate(bunch.confound_names):
+            attrs.update({f'confound_name_{i}': confound_name})
 
     performance.attrs = attrs  # saving attributes
     filename_performance = model_preamble + '_performance.nc'  # savepath

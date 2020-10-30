@@ -68,7 +68,7 @@ clustering.add_argument('--Q', default=5, type=int, help='number of feature used
 clustering.add_argument('--dataset_to_cluster', choices=['IMAGEN', 'HCP'], default='HCP',
                         help='the NEO-FFI dataset from generate clusters from', nargs='?')
 
-# # SETTING CONDITIONAL ARGUMENTS # TODO: fix this shit. Conditional argument are unrecognized by parser
+# # SETTING CONDITIONAL ARGUMENTS
 uncond_args = parser.parse_args()  # parsing unconditional variables first
 logic = parser.add_argument_group('pipeline_logic', 'necessary vars for pipeline logic')
 

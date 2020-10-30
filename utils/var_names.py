@@ -38,3 +38,5 @@ r_vars = ['Family_ID', 'Subject', 'Weight', 'Height', 'Handedness', 'Age_in_Yrs'
 b_vars = ['NEOFAC_O', 'NEOFAC_C', 'NEOFAC_E', 'NEOFAC_A', 'NEOFAC_N', 'PSQI_Score', 'Gender', 'PMAT24_A_CR']
 
 multiclass_outcomes = ['Gender', 'hardcluster']
+
+confounds = ['Weight', 'Height', 'Handedness', 'Age_in_Yrs', 'Gender', 'PSQI_Score', None]

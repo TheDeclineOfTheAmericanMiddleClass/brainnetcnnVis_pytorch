@@ -83,7 +83,7 @@ models=('BNCNN' 'SVM')
 #  done
 #done
 
-# # Deconfounded, tangent tranform, with SVM feature selelction per Liu et al.
+# # Personality outcomes on deconfounded with Age/Gender, tangent tranform
 datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
 outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N')
 models=('BNCNN')
@@ -95,22 +95,22 @@ transforms=('tangent' 'untransformed')
 # x 5 cv_folds
 # = 500 BNCNN models
 
-# multiple tasks, single outcome
-for transform in "${transforms[@]}"; do
-  for model in "${models[@]}"; do
-    for outcome in "${outcomes[@]}"; do
-      python dof_parser.py -v -po "$outcome" -mo "$model" -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 5
-    done
-  done
-done
-
 # single task, single outcome
 for transform in "${transforms[@]}"; do
   for model in "${models[@]}"; do
     for outcome in "${outcomes[@]}"; do
       for dataset in "${datasets[@]}"; do
-        python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268  --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 5
+        python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268  --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
       done
+    done
+  done
+done
+
+# multiple tasks, single outcome
+for transform in "${transforms[@]}"; do
+  for model in "${models[@]}"; do
+    for outcome in "${outcomes[@]}"; do
+      python dof_parser.py -v -po "$outcome" -mo "$model" -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
     done
   done
 done

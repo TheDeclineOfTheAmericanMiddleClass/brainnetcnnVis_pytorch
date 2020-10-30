@@ -21,7 +21,7 @@ def main(args):
 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, pin_memory=False, num_workers=1)
     testloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
-    valloader = torch.utils.data.DataLoader(testset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=8, shuffle=False, pin_memory=False, num_workers=1)
 
     # Creating the model
     if bunch.predicted_outcome == ['Gender'] and bunch.architecture == 'yeo_sex':
@@ -48,8 +48,8 @@ def main(args):
         net = net.to(bunch.device)
         cudnn.benchmark = True
 
-    # ensure model parameters are on GPU
-    assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
+        # ensure model parameters are on GPU
+        assert next(net.parameters()).is_cuda, 'Parameters are not on the GPU !'
 
     # Following function are only applied to linear layers
     def init_weights_he(m):
@@ -204,7 +204,7 @@ def main(args):
 
             # print statistics
             if batch_idx == len(testloader) - 1:  # print for final batch
-                print('\nTest loss: %.6f' % (running_loss / 5))
+                print('\nTest loss: %.6f' % (running_loss / len(testloader)))
                 running_loss = 0.0
 
         if not bunch.multi_outcome and not bunch.multiclass:
@@ -251,8 +251,8 @@ def main(args):
             running_loss += loss.data.mean(0)  # only predicting 1 feature
 
             # print statistics
-            if batch_idx == len(valloader) - 1:  # print for final batch
-                print('Val loss: %.6f' % (running_loss / 5))
+            if batch_idx == len(valloader) - 1:  # print for final batch # TODO: fix batching
+                print('Val loss: %.6f' % (running_loss / len(valloader)))
                 running_loss = 0.0
 
         if not bunch.multi_outcome and not bunch.multiclass:
@@ -274,7 +274,8 @@ def main(args):
             m.weight.data.uniform_(-he_lim, he_lim)
             print(f'\nWeight initializations: {m.weight}')
 
-    return dict(train=train, test=test, val=val, net=net)
+    return dict(train=train, test=test, val=val, net=net,
+                valloader=valloader, testloader=testloader, criterion=criterion)
 
 if __name__ == '__main__':
     main()
