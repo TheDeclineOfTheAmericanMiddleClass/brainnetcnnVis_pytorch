@@ -83,6 +83,7 @@ def main(args):
 
     if bunch.deconfound_flavor == 'X1Y0':  # If we have data to deconfound...
 
+        # TODO: implement dec_preamble
         print(f'Checking if {len(bunch.chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
 
         for i, datavar in enumerate(bunch.chosen_Xdatavars):
@@ -106,8 +107,10 @@ def main(args):
                     if confound_name in multiclass_outcomes:
                         _, confounds[i] = np.unique(confounds[i], return_inverse=True)
 
-                if bunch.scale_confounds:  # scaling confounds, per train set alone
-                    confounds = [x / np.max(np.abs(x[partition_inds["train"]])) for x in confounds]
+                if bunch.scale_confounds:  # MinMax scaling confounds, per train set alone
+                    confounds = [(x - np.min(x[partition_inds["train"]]))
+                                 / (np.max(x[partition_inds["train"]]) - np.min(x[partition_inds["train"]]))
+                                 for x in confounds]
 
             print(f'Deconfounding {datavar} data using {bunch.confound_names} as confounds...')
             X_corr, Y_corr, nan_ind = deconfound_dataset(data=cdata[datavar].values, confounds=confounds,
@@ -191,6 +194,7 @@ def main(args):
         # # Projecting matrices into tangent space
         ###################################################################
         if bunch.transformations == 'tangent':
+            # TODO: implement tan_preamble
             for i, datavar in enumerate(chosen_Xdatavars):
 
                 if bunch.cv_folds > 1:  # conditional allows fold-specific data loading in calc_new_metric.py

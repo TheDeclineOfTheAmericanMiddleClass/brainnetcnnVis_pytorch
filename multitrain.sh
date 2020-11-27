@@ -7,10 +7,10 @@
 # 8 single-outcome continuous (OCEAN separately, each non-spurious soft-clusters {2,6,9})
 # 1 multiclass (hardcluster)
 
-datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
-outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N' 'softcluster_2' 'softcluster_6' 'softcluster_9' 'hardcluster' )
-models=('BNCNN' 'SVM')
-
+#datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
+#outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N' 'softcluster_2' 'softcluster_6' 'softcluster_9' 'hardcluster' )
+#models=('BNCNN' 'SVM')
+#
 ## multiple tasks, multiple outcomes (only BNCNN)
 #python dof_parser.py -v -mo BNCNN -cd HCP_alltasks_268 -po softcluster_1 -po softcluster_2 -po softcluster_3 -po softcluster_4 -po softcluster_5 -po softcluster_6 -po softcluster_7 -po softcluster_8 -po softcluster_9 -po softcluster_10 -po softcluster_11 -po softcluster_12 -po softcluster_13 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces
 #python dof_parser.py -v -mo BNCNN -cd HCP_alltasks_268 -po softcluster_2 -po softcluster_6 -po softcluster_9 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces
@@ -83,24 +83,60 @@ models=('BNCNN' 'SVM')
 #  done
 #done
 
-# # Personality outcomes on deconfounded with Age/Gender, tangent tranform
-datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
-outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N')
-models=('BNCNN')
-transforms=('tangent' 'untransformed')
+## # Personality outcomes on deconfounded with Age/Gender, tangent tranform
+#datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
+#outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N')
+#models=('BNCNN')
+#transforms=('tangent' 'untransformed')
 
 # 10 training datasets (including combination of all sets)
 # x 2 transformations
 # x 5 continous single outcomes
-# x 5 cv_folds
-# = 500 BNCNN models
+# x 6 cv_folds
+# = 600 BNCNN models
+#
+#datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
+#outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N')
+#models=('BNCNN')
+#transforms=('tangent' 'untransformed')
+#
+## single task, single outcome
+#for transform in "${transforms[@]}"; do
+#  for model in "${models[@]}"; do
+#    for outcome in "${outcomes[@]}"; do
+#      for dataset in "${datasets[@]}"; do
+#        python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268  --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
+#      done
+#    done
+#  done
+#done
+#
+## multiple tasks, single outcome
+#for transform in "${transforms[@]}"; do
+#  for model in "${models[@]}"; do
+#    for outcome in "${outcomes[@]}"; do
+#      python dof_parser.py -v -po "$outcome" -mo "$model" -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
+#    done
+#  done
+#done
+
+# # Personality outcomes on deconfounded with Age/Gender, tangent tranform, scaled features, early stopping 11.26.20
+# 10 training datasets (including combination of all sets)
+# x 2 transformations
+# x 5 continous single outcomes
+# x 6 cv_folds
+# = 600 BNCNN models
+datasets=('rest1' 'working_memory' 'gambling' 'motor' 'rest2' 'language' 'social' 'relational' 'faces')
+outcomes=('NEOFAC_O' 'NEOFAC_C' 'NEOFAC_E' 'NEOFAC_A' 'NEOFAC_N')
+models=('BNCNN')
+transforms=('tangent' 'untransformed')
 
 # single task, single outcome
 for transform in "${transforms[@]}"; do
   for model in "${models[@]}"; do
     for outcome in "${outcomes[@]}"; do
       for dataset in "${datasets[@]}"; do
-        python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268  --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
+        python dof_parser.py -v -ct "$dataset" -po "$outcome" -mo "$model" -cd HCP_alltasks_268 --deconfound_flavor X1Y0 --transformations "$transform" -sf -sc -cn Gender -cn Age_in_Yrs --cv_folds 6
       done
     done
   done
@@ -110,7 +146,6 @@ done
 for transform in "${transforms[@]}"; do
   for model in "${models[@]}"; do
     for outcome in "${outcomes[@]}"; do
-      python dof_parser.py -v -po "$outcome" -mo "$model" -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces --deconfound_flavor X1Y0 --transformations "$transform" -cn Gender -cn Age_in_Yrs --cv_folds 6
-    done
+      python dof_parser.py -v -po "$outcome" -mo "$model" -cd HCP_alltasks_268 -ct rest1 -ct working_memory -ct gambling -ct motor -ct rest2 -ct language -ct social -ct relational -ct faces --deconfound_flavor X1Y0 --transformations "$transform" -sf -sc -cn Gender -cn Age_in_Yrs
   done
 done

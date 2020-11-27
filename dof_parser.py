@@ -40,7 +40,9 @@ transforms.add_argument('-cn', '--confound_names',
                         choices=['Weight', 'Height', 'Handedness', 'Age_in_Yrs', 'Gender', 'PSQI_Score', None],
                         default=None, type=str, action='append', help='confounds to regress out of outcome')
 transforms.add_argument("-sc", "--scale_confounds", action='store_true', default=False,
-                        help='ensures absolute maximum value of each confound == 1, before deconfounding')
+                        help='ensures each confound is in range [0,1] deconfounding')
+transforms.add_argument("-sf", "--scale_features", action='store_true', default=False,
+                        help='ensures each feature is in range [0,1] before training')
 
 # optional training hyperparameters
 hyper = parser.add_argument_group('hyper', 'model training hyperparams')
@@ -57,7 +59,8 @@ epochs = parser.add_argument_group('epochs', 'training iterations params')
 epochs.add_argument('--n_epochs', default=300, type=int, help='max epochs to train BNCNN over', nargs='?')
 epochs.add_argument('-ea', '--early', action='store_true', help='early stopping')
 epochs.add_argument('--cv_folds', default=5, type=int, help='cross validation folds', nargs='?')
-epochs.add_argument('--ep_int', type=int, default=5, help='if no improvement after {ep_int} epochs, stop early',
+# epochs.add_argument('--start_fold', default=0, type=int, help='fold to resume training on', nargs='?')
+epochs.add_argument('--ep_int', type=int, default=10, help='if no improvement after {ep_int} epochs, stop early',
                     nargs='?')
 epochs.add_argument('--min_ep', default=50, type=int, help='mininmum epochs to train before early stopping',
                     nargs='?')
@@ -75,7 +78,7 @@ logic = parser.add_argument_group('pipeline_logic', 'necessary vars for pipeline
 # if uncond_args.model in [['BNCNN'], ['SVM']]:
 if uncond_args.early:
     # note: f'{}' string formatting doesn't work with every terminal. ?must be python 3 compatible
-    epochs.add_argument('early_str', action='store_const', const=f'es{epochs.ep_int}')
+    epochs.add_argument('early_str', action='store_const', const=f'es{uncond_args.ep_int}')
 else:
     epochs.add_argument('early_str', action='store_const', const='')
 
@@ -87,9 +90,14 @@ else:
     logic.add_argument('data_are_matrices', action='store_const', const=True, help='bool for transformations')
 
 if uncond_args.scale_confounds:
-    transforms.add_argument('scl', action='store_const', const='scaled')
+    transforms.add_argument('scl', action='store_const', const='minmax')
 else:
     transforms.add_argument('scl', action='store_const', const='')
+
+if uncond_args.scale_features:
+    transforms.add_argument('fscl', action='store_const', const='minmax')
+else:
+    transforms.add_argument('fscl', action='store_const', const='')
 
 if uncond_args.predicted_outcome == [f'softcluster_{i}' for i in range(1, 14)]:  # if predicting on all clusters
     in_out.add_argument('po_str', action='store_const', const='softcluster_all')

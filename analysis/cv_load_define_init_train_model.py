@@ -110,7 +110,7 @@ def main(args):
     # tracking id of models as sanity check
     net_ids = []
 
-    # start of cv_fold training loop
+    # start of cv_fold training loop TODO: logic for start_fold, accurate
     for fold in range(bunch.cv_folds):
 
         print(f'\nTraining fold {fold}')
@@ -168,7 +168,8 @@ def main(args):
             print(f'Checking if {len(chosen_Xdatavars)} data variable(s) were/was previously deconfounded...\n')
 
             dec_count = 0
-            dec_preamble = '_'.join([f'dec{"".join(tf_str)}_cv{bunch.cv_folds}', "_".join(bunch.confound_names)])
+            dec_preamble = '_'.join(filter(None, [f'dec{"".join(tf_str)}_cv{bunch.cv_folds}',
+                                                  "_".join(bunch.confound_names), bunch.scl]))
 
             # deconfounding all chosen data variables
             for i, datavar in enumerate(chosen_Xdatavars):
@@ -191,8 +192,11 @@ def main(args):
                         if confound_name in multiclass_outcomes:
                             _, confounds[i] = np.unique(confounds[i], return_inverse=True)
 
-                    if bunch.scale_confounds:  # scaling confounds, per train set alone
-                        confounds = [x / np.max(np.abs(x[partition_inds["train"]])) for x in confounds]
+                    if bunch.scale_confounds:  # MinMax scaling confounds, per train set alone
+                        print('scaling confounds to range [0,1]...')
+                        confounds = [(x - np.min(x[partition_inds["train"]]))
+                                     / (np.max(x[partition_inds["train"]]) - np.min(x[partition_inds["train"]]))
+                                     for x in confounds]
 
                 print(f'Deconfounding {datavar} data using {bunch.confound_names} as confounds...')
                 dec_count += 1
@@ -313,6 +317,14 @@ def main(args):
             chosen_Xdatavars = ['_'.join([tan_preamble, x]) for x in chosen_Xdatavars]
         elif bunch.transformations == 'positive definite':
             chosen_Xdatavars = ['_'.join(['pd', x]) for x in chosen_Xdatavars]
+
+        # feature scaling from train set
+        if bunch.scale_features:
+            print('scaling input features to range [0,1]...')
+            for dv in chosen_Xdatavars:
+                cdata[dv] = (cdata[dv] - cdata.loc[dict(subject=partition_subs["train"])][dv].min()) / \
+                            (cdata.loc[dict(subject=partition_subs["train"])][dv].max() -
+                             cdata.loc[dict(subject=partition_subs["train"])][dv].min())
 
         try:  # if multi outcome
             Y = xr.DataArray(Y, coords=dict(subject=bunch.cdata.subject.values, outcome=bunch.predicted_outcome),
@@ -1168,11 +1180,11 @@ def main(args):
 
                         stagnant_r = (np.nanmean(
                             np.abs(performance[epoch - bunch.ep_int:-1].loc[
-                                       dict(set='test', metrics='pearsonR', cv_fold=fold)]),
+                                       dict(set='test', metrics='pearsonr', cv_fold=fold)]),
                             axis=0) <=
                                       np.abs(
                                           performance[epoch].loc[
-                                              dict(set='test', metrics='pearsonR', cv_fold=fold)])).sum() >= majority
+                                              dict(set='test', metrics='pearsonr', cv_fold=fold)])).sum() >= majority
 
                         if stagnant_mae or stagnant_r:
                             estop_epochs[
@@ -1192,8 +1204,8 @@ def main(args):
                             axis=0) <= performance[epoch].loc[dict(set='test', metrics='MAE', cv_fold=fold)]
                         stagnant_r = np.nanmean(
                             performance[epoch - bunch.ep_int:-1].loc[
-                                dict(set='test', metrics='pearsonR', cv_fold=fold)],
-                            axis=0) <= performance[epoch].loc[dict(set='test', metrics='pearsonR', cv_fold=fold)]
+                                dict(set='test', metrics='pearsonr', cv_fold=fold)],
+                            axis=0) <= performance[epoch].loc[dict(set='test', metrics='pearsonr', cv_fold=fold)]
                         if stagnant_mae or stagnant_r:
                             estop_epochs[
                                 f'estop_epoch_fold_{fold}'] = epoch - bunch.ep_int  # update early stopping epoch to dict
@@ -1204,10 +1216,10 @@ def main(args):
         # saving model weights and output with best test set performance
         torch.save(best_net, os.path.join('models', model_preamble + f'_epoch-{best_test_epoch}_fold-{fold}_model.pt'))
         pickle.dump(dict(zip([namestr(x, locals()) for x in best_output], best_output)),
-                    open(os.path.join('performance', model_preamble +
+                    open(os.path.join('performance', 'BNCNN', 'best_output', model_preamble +
                                       f'_epoch-{best_test_epoch}_fold-{fold}_output.pkl'), "wb"))
 
-    # Create attribute dicitonary, to hold training params
+    # Create attribute dictionary, to hold training params
     attrs = dict(rundate=rundate, chosen_Xdatavars=bunch.cXdv_str,
                  predicted_outcome=bunch.po_str, transformations=bunch.transformations,
                  deconfound_flavor=bunch.deconfound_flavor, architecture=bunch.architecture,
@@ -1222,6 +1234,11 @@ def main(args):
     if bunch.confound_names:  # adding confounds to attributes, if any
         for i, confound_name in enumerate(bunch.confound_names):
             attrs.update({f'confound_name_{i}': confound_name})
+        if bunch.scale_confounds:
+            attrs.update({f'confound_scaling': bunch.scl})
+
+    if bunch.scale_features:
+        attrs.update({f'feature_scaling': bunch.fscl})
 
     performance.attrs = attrs  # saving attributes
     filename_performance = model_preamble + '_performance.nc'  # savepath
@@ -1232,11 +1249,12 @@ def main(args):
     best_val_MAE = np.nanmean([performance.loc[
                                    dict(set='val', metrics='MAE', epoch=best_test_epochs[f'best_test_epoch_fold_{i}'],
                                         cv_fold=i)].values.tolist() for i in range(bunch.cv_folds)], axis=0)
-    best_val_R = np.nanmean([performance.loc[dict(set='val', metrics='pearsonR',
+    best_val_R = np.nanmean([performance.loc[dict(set='val', metrics='spearmanr',
                                                   epoch=best_test_epochs[f'best_test_epoch_fold_{i}'],
                                                   cv_fold=i)].values.tolist() for i in range(bunch.cv_folds)], axis=0)
     best_val_p = np.nanmean([performance.loc[
-                                 dict(set='val', metrics='p_value', epoch=best_test_epochs[f'best_test_epoch_fold_{i}'],
+                                 dict(set='val', metrics='spearmanp',
+                                      epoch=best_test_epochs[f'best_test_epoch_fold_{i}'],
                                       cv_fold=i)].values.tolist() for i in range(bunch.cv_folds)], axis=0)
     best_val_acc = np.nanmean([performance.loc[dict(set='val', metrics='accuracy',
                                                     epoch=best_test_epochs[f'best_test_epoch_fold_{i}'],

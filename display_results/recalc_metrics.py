@@ -24,6 +24,8 @@ def recalc_metrics(metrics, model_dir, perf_dir):
     """
 
     performance_results = [x for x in os.listdir(perf_dir) if x.endswith('.nc')]  # performance xarray filenames
+    all_results = []
+    all_paths = []
 
     # TODO: calculate below params from exhaustive perf_dir xarray attributes
     # fixed
@@ -156,10 +158,12 @@ def recalc_metrics(metrics, model_dir, perf_dir):
                     save_path = os.path.join(perf_dir, 'recalc', 'recalc_' + perf_name[0])
                     print(f'\nSaving {save_path}')
                     # TODO: debug saving error, issue with xr.broadcast
+                    # all_results.append(performance)
+                    # all_paths.append(save_path)
                     performance.to_netcdf(save_path)  # saving recalculated metrics to new file
 
 
-model_dir = 'models'
+model_dir = 'models/personality_single_outcome'
 perf_dir = 'performance/BNCNN/personality_single_outcome'
 metrics = [spearmanr, pearsonr]
 
